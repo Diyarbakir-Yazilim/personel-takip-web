@@ -1,0 +1,188 @@
+openapi: 3.2.0
+info:
+  title: DTSO Temizlik Takip Sistemi (TTS) API
+  version: 1.0.0
+  description: DTSO-TTS Mobil, Kiosk ve Yönetim Paneli için API Sözleşmesi
+servers:
+  - url: https://tts-api.dtso.org.tr/v1
+    description: Production API Sunucusu
+
+paths:
+  /scans:
+    post:
+      summary: QR veya NFC Okutma İşlemi (Check-in / Check-out)
+      description: |
+        Personel alandaki QR'ı okuttuğunda veya NFC'ye dokunduğunda çağrılır.
+        Sunucu otomatik olarak açık göreve göre CHECK_IN veya CHECK_OUT kararını verir.
+      operationId: processScan
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Ağ kesintilerinde mükerrer kaydı önlemek için benzersiz istemci UUID'si
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScanEventInput'
+      responses:
+        '201':
+          description: Okutma başarıyla işlendi
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScanResponse'
+        '400':
+          $ref: '#/components/responses/400BadRequest'
+        '409':
+          description: Replay Attack - Bu QR/NFC kodu daha önce kullanılmış
+          content:
+            application/problem+json:
+              example:
+                type: "https://api.dtso.org.tr/errors/replay-detected"
+                title: "Bu kod daha önce kullanılmış"
+                status: 409
+                detail: "Okutulan doğrulama kodu 42 saniye önce işlenmiş."
+                code: "SCAN_REPLAY_DETECTED"
+
+  /tasks/my-day:
+    get:
+      summary: Personelin Bugünkü Görev Listesi
+      operationId: getMyTasks
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Bugünkü atanmış görevler
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TaskInstance'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    ScanEventInput:
+      type: object
+      required:
+        - token
+        - action
+        - method
+        - clientEventId
+        - clientScannedAt
+        - deviceIntegrity
+      properties:
+        token:
+          type: string
+          example: "ZGV2XzAxOTIzfDU4Mjk0NzF8MTJ8YWJjZGVmZ2hpams="
+          description: QR veya NFC'den okunan kriptografik payload
+        action:
+          type: string
+          enum: [AUTO, CHECK_IN, CHECK_OUT]
+          default: AUTO
+        method:
+          type: string
+          enum: [DYNAMIC_QR, STATIC_QR, NFC, MANUAL_FALLBACK]
+        clientEventId:
+          type: string
+          format: uuid
+        clientScannedAt:
+          type: string
+          format: date-time
+        location:
+          type: object
+          nullable: true
+          properties:
+            lat:
+              type: number
+              example: 37.914250
+            lng:
+              type: number
+              example: 40.230118
+            accuracy:
+              type: number
+              example: 12.5
+        deviceIntegrity:
+          type: object
+          properties:
+            isRooted:
+              type: boolean
+            isEmulator:
+              type: boolean
+            isMockLocation:
+              type: boolean
+
+    ScanResponse:
+      type: object
+      properties:
+        scanId:
+          type: string
+          format: uuid
+        resolvedAction:
+          type: string
+          enum: [CHECK_IN, CHECK_OUT]
+        task:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            zoneName:
+              type: string
+              example: "1. Kat Bay Lavabo"
+            status:
+              type: string
+              enum: [IN_PROGRESS, DONE, FLAGGED]
+            startedAt:
+              type: string
+              format: date-time
+            checklist:
+              type: array
+              items:
+                type: string
+        risk:
+          type: object
+          properties:
+            score:
+              type: integer
+              example: 0
+            flags:
+              type: array
+              items:
+                type: string
+
+    TaskInstance:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        zoneCode:
+          type: string
+          example: "K1-LAV-01"
+        zoneName:
+          type: string
+          example: "1. Kat Bay Lavabo"
+        status:
+          type: string
+          enum: [SCHEDULED, PENDING, IN_PROGRESS, DONE, MISSED, FLAGGED]
+        scheduledFor:
+          type: string
+          format: date-time
+
+  responses:
+    400BadRequest:
+      description: Geçersiz İstek / Şema Doğrulama Hatası
