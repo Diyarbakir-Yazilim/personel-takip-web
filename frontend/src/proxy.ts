@@ -20,7 +20,7 @@ const PUBLIC_ROUTES = ['/login', '/register', '/forgot-password'];
 /**
  * Next.js Middleware for authentication and role-based access control (RBAC).
  */
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Bypass static files, Next.js internal assets, and public files
