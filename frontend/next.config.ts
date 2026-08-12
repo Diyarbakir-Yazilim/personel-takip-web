@@ -1,8 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
   reactCompiler: true,
+
+  allowedDevOrigins: [
+    "viewing-played-highs-nano.trycloudflare.com",
+  ],
 };
 
 export default nextConfig;
