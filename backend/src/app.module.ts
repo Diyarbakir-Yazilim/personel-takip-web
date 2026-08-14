@@ -5,9 +5,10 @@ import { AuthModule } from './auth/auth.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RedisModule } from './common/redis/redis.module';
 import { ScansModule } from './scans/scans.module';
+import { QrModule } from './qr/qr.module';
 
 @Module({
-  imports: [AuthModule, PrismaModule, RedisModule, ScansModule],
+  imports: [AuthModule, PrismaModule, RedisModule, ScansModule, QrModule],
   controllers: [AppController],
   providers: [AppService],
 })
