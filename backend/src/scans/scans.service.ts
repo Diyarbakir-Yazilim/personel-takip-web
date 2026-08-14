@@ -17,22 +17,16 @@ export class ScansService {
     for (const scan of dto.scans) {
       const cacheKey = `scan_event:${scan.clientEventId}`;
 
-      // 1. Redis'te clientEventId var mı kontrol et
-      const exists = await this.redis.get(cacheKey);
+      const isSet = await this.redis.setNx(cacheKey, 'PROCESSED', 86400);
 
-      if (exists) {
-        // Mükerrer istek: Pas geçiliyor
+      if (!isSet) {
         skippedClientEventIds.push(scan.clientEventId);
         continue;
       }
 
-      // 2. Redis'e ekle (TTL: 24 Saat / 86400 sn)
-      await this.redis.set(cacheKey, 'PROCESSED', 86400);
-
       processedScans.push(scan);
     }
 
-    // 3. Redis'e yeni eklenen (mükerrer olmayan) verileri Veritabanına kaydet
     if (processedScans.length > 0) {
       await this.prisma.$transaction(
         processedScans.map((scan) =>
