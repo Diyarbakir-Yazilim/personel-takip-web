@@ -2,7 +2,6 @@ import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import  parseExpression  from 'cron-parser';
 
 @Processor('task-generator-queue')
 @Injectable()
@@ -17,33 +16,27 @@ export class TasksProcessor extends WorkerHost {
     this.logger.log(`[Nightly Job] Running task generation job: ${job.id}`);
 
     try {
-      const templates = await (this.prisma as any).taskTemplate.findMany({
-        where: { isActive: true },
-      });
+      // Şemada TaskTemplate olmadığı için sistemdeki tüm Zone'ları alıp her biri için task oluşturabiliriz
+      const zones = await this.prisma.zone.findMany();
 
-      this.logger.log(`[Nightly Job] Found ${templates.length} active task templates.`);
+      this.logger.log(`[Nightly Job] Found ${zones.length} zones to generate task instances.`);
 
       const now = new Date();
       let createdCount = 0;
 
-      for (const template of templates) {
+      for (const zone of zones) {
         try {
-          const interval = parseExpression.parse(template.cronExpression);
-          
-          await (this.prisma as any).taskInstance.create({
+          await this.prisma.taskInstance.create({
             data: {
-              template: {
-                connect: { id: template.id },
-              },
-              title: template.title,
-              description: template.description,
+              zoneId: zone.id,
               status: 'SCHEDULED',
-              scheduledDate: now,
+              scheduledFor: now,
+              checklist: [], // Gerekirse varsayılan maddeler eklenebilir
             },
           });
           createdCount++;
-        } catch (cronError) {
-          this.logger.error(`Invalid cron expression for template ${template.id}: ${template.cronExpression}`);
+        } catch (zoneError) {
+          this.logger.error(`Failed to generate task instance for zone ${zone.id}: ${zoneError.message}`);
         }
       }
 
