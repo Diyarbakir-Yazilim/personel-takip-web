@@ -5,10 +5,15 @@ import { SwaggerModule } from '@nestjs/swagger';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as YAML from 'yaml';
+import { AuditInterceptor } from './common/interceptors/audit.interceptor';
+import { PrismaService } from './prisma/prisma.service';
+
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-
+  const prismaService = app.get(PrismaService);
+  app.useGlobalInterceptors(new AuditInterceptor(prismaService));
+  
   app.setGlobalPrefix('v1');
 
   app.enableCors({
