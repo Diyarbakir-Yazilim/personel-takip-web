@@ -1,15 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-// Assume PrismaService is exported from a shared prisma module or infra
-// import { PrismaService } from '../../prisma/prisma.service'; 
+import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
 export class RetentionService {
   private readonly logger = new Logger(RetentionService.name);
   
-  // Real prisma injection (commented to compile without full setup, but ready for real service)
-  // constructor(private prisma: PrismaService) {}
-  private prisma: any = { scanEvent: { updateMany: async () => ({ count: 0 }) } };
+  constructor(private prisma: PrismaService) {}
 
   @Cron(CronExpression.EVERY_DAY_AT_3AM)
   async nullifyOldGpsData() {

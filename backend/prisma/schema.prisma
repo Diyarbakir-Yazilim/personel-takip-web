@@ -3,11 +3,154 @@
 
 // Get a free hosted Postgres database in seconds: `npx create-db`
 
-generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+datasource db {
+  provider = "postgresql" 
+
 }
 
-datasource db {
-  provider = "postgresql"
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ==========================================
+// ENUMS
+// ==========================================
+
+enum UserRole {
+  STAFF
+  SUPERVISOR
+  ADMIN
+}
+
+enum TaskStatus {
+  SCHEDULED
+  PENDING
+  IN_PROGRESS
+  DONE
+  MISSED
+  FLAGGED
+}
+
+enum ScanAction {
+  AUTO
+  CHECK_IN
+  CHECK_OUT
+}
+
+enum ScanMethod {
+  DYNAMIC_QR
+  STATIC_QR
+  NFC
+  MANUAL_FALLBACK
+}
+
+// ==========================================
+// MODELS
+// ==========================================
+
+model User {
+  id        String   @id @default(uuid()) @db.Uuid
+  email     String   @unique
+  password  String   
+  fullName  String
+  role      UserRole @default(STAFF)
+  deviceId  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tasks TaskInstance[]
+  scans ScanEvent[]
+
+  @@map("users")
+}
+
+model Zone {
+  id        String   @id @default(uuid()) @db.Uuid
+  code      String   @unique
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tasks TaskInstance[]
+
+  @@map("zones")
+}
+
+model TaskInstance {
+  id           String     @id @default(uuid()) @db.Uuid
+  zoneId       String     @db.Uuid
+  userId       String?    @db.Uuid
+  status       TaskStatus @default(SCHEDULED)
+  scheduledFor DateTime
+  startedAt    DateTime?
+  completedAt  DateTime?
+  checklist    String[]
+  
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  zone  Zone       @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  user  User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+  scans ScanEvent[]
+
+  
+  @@index([zoneId])
+  @@index([userId])
+  @@index([scheduledFor])
+  @@index([status])
+  
+
+  @@map("task_instances")
+}
+model ScanEvent {
+  id              String     @id @default(uuid()) @db.Uuid
+  idempotencyKey  String     @unique @db.Uuid
+  userId          String     @db.Uuid
+  taskId          String?    @db.Uuid
+  
+  token           String
+  requestedAction ScanAction @default(AUTO)
+  resolvedAction  ScanAction
+  method          ScanMethod
+  
+  clientEventId   String     @db.Uuid
+  clientScannedAt DateTime
+  riskScore       Int        @default(0)
+  riskFlags       String[]
+
+  createdAt       DateTime   @default(now())
+
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task            TaskInstance?    @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  location        ScanLocation?
+  deviceIntegrity DeviceIntegrity?
+
+  @@index([userId])
+  @@index([clientScannedAt])
+  @@map("scan_events")
+}
+
+model ScanLocation {
+  id          String    @id @default(uuid()) @db.Uuid
+  scanEventId String    @unique @db.Uuid
+  lat         Float
+  lng         Float
+  accuracy    Float?
+
+  scanEvent   ScanEvent @relation(fields: [scanEventId], references: [id], onDelete: Cascade)
+
+  @@map("scan_locations")
+}
+
+model DeviceIntegrity {
+  id             String    @id @default(uuid()) @db.Uuid
+  scanEventId    String    @unique @db.Uuid
+  isRooted       Boolean   @default(false)
+  isEmulator     Boolean   @default(false)
+  isMockLocation Boolean   @default(false)
+
+  scanEvent      ScanEvent @relation(fields: [scanEventId], references: [id], onDelete: Cascade)
+
+  @@map("device_integrities")
 }
