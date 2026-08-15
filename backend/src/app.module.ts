@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { BullModule } from '@nestjs/bullmq';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
@@ -6,9 +7,23 @@ import { PrismaModule } from './prisma/prisma.module';
 import { RedisModule } from './common/redis/redis.module';
 import { ScansModule } from './scans/scans.module';
 import { QrModule } from './qr/qr.module';
+import { TasksModule } from './tasks/tasks.module';
 
 @Module({
-  imports: [AuthModule, PrismaModule, RedisModule, ScansModule, QrModule],
+  imports: [
+    BullModule.forRoot({
+      connection: {
+        host: process.env.REDIS_HOST || 'localhost',
+        port: Number(process.env.REDIS_PORT) || 6379,
+      },
+    }),
+    AuthModule,
+    PrismaModule,
+    RedisModule,
+    ScansModule,
+    QrModule,
+    TasksModule,
+  ],
   controllers: [AppController],
   providers: [AppService],
 })

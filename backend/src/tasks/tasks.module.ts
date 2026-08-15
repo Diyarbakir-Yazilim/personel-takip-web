@@ -1,12 +1,24 @@
 import { Module } from '@nestjs/common';
+import { BullModule } from '@nestjs/bullmq';
 import { TasksService } from './tasks.service';
 import { TasksController } from './tasks.controller';
-import { PrismaModule } from '../prisma/prisma.module'; // Projendeki prisma module yolu
+import { TaskSchedulerService } from './task-scheduler.service';
+import { TasksProcessor } from './tasks.processor';
+import { PrismaModule } from '../prisma/prisma.module';
 
 @Module({
-  imports: [PrismaModule],
+  imports: [
+    BullModule.registerQueue({
+      name: 'task-generator-queue',
+    }),
+    PrismaModule,
+  ],
   controllers: [TasksController],
-  providers: [TasksService],
+  providers: [
+    TasksService,
+    TaskSchedulerService,
+    TasksProcessor,
+  ],
   exports: [TasksService],
 })
 export class TasksModule {}
