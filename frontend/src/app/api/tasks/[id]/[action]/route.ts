@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function PATCH(
   request: NextRequest,
-  context: { params: { id: string; action: string } }
+  context: { params: Promise<{ id: string; action: string }> }
 ) {
-  const { id, action } = context.params;
+  // Next.js 15+ sürümlerinde params artık bir Promise'dir, bu yüzden await etmeliyiz.
+  const { id, action } = await context.params;
+
   const backendUrl = (
     process.env.BACKEND_API_URL || "http://localhost:5000/v1"
   ).replace(/\/$/, "");

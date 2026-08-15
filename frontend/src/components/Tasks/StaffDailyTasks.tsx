@@ -241,10 +241,17 @@ export default function StaffDailyTasks() {
         );
       }
 
-      const data =
-        (await response.json()) as DailyTask[];
+      const data = await response.json();
 
-      setTasks(data);
+      const taskList = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.data)
+          ? data.data
+          : Array.isArray(data?.tasks)
+            ? data.tasks
+            : [];
+
+      setTasks(taskList as DailyTask[]);
     } catch (err) {
       setError(
         err instanceof Error
@@ -284,9 +291,9 @@ export default function StaffDailyTasks() {
    * ---------------------------------------
    *
    * QRScanner -> onScan
-   *             ↓
+   *           ôô
    * handleQRScan
-   *             ↓
+   *           ôô
    * PATCH /tasks/:id/start
    * veya
    * PATCH /tasks/:id/complete
@@ -350,16 +357,23 @@ export default function StaffDailyTasks() {
           );
         }
 
+        const responseData = await response.json();
         const updatedTask =
-          (await response.json()) as DailyTask;
+          responseData?.data && !Array.isArray(responseData.data)
+            ? responseData.data
+            : responseData;
 
-        setTasks((prev) =>
-          prev.map((task) =>
-            task.id === taskId
-              ? updatedTask
-              : task
-          )
-        );
+        if (updatedTask?.id) {
+          setTasks((prev) =>
+            prev.map((task) =>
+              task.id === taskId
+                ? (updatedTask as DailyTask)
+                : task
+            )
+          );
+        } else {
+          await loadTasks();
+        }
       } catch (err) {
         setActionError(
           err instanceof Error
@@ -435,16 +449,23 @@ export default function StaffDailyTasks() {
           );
         }
 
+        const responseData = await response.json();
         const updatedTask =
-          (await response.json()) as DailyTask;
+          responseData?.data && !Array.isArray(responseData.data)
+            ? responseData.data
+            : responseData;
 
-        setTasks((prev) =>
-          prev.map((task) =>
-            task.id === taskId
-              ? updatedTask
-              : task
-          )
-        );
+        if (updatedTask?.id) {
+          setTasks((prev) =>
+            prev.map((task) =>
+              task.id === taskId
+                ? (updatedTask as DailyTask)
+                : task
+            )
+          );
+        } else {
+          await loadTasks();
+        }
       } catch (err) {
         setActionError(
           err instanceof Error
@@ -933,11 +954,11 @@ function TaskList({
           <ClipboardList className="mb-4 size-10 text-muted-foreground" />
 
           <h3 className="font-semibold">
-            Bu kategoride görev yok
+            Bu kategoride Görev yok
           </h3>
 
           <p className="mt-1 text-sm text-muted-foreground">
-            Şu anda gösterilecek görev bulunmuyor.
+            Şu anda gösterilecek görev bulunmuyor
           </p>
         </CardContent>
       </Card>
