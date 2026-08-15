@@ -6,7 +6,8 @@ export async function POST(request: NextRequest) {
     console.log('[BFF Login] Request body:', body);
 
     // Forward login payload to NestJS backend
-    const backendRes = await fetch('http://localhost:5000/v1/auth/login', {
+    const backendUrl = process.env.BACKEND_API_URL || 'http://localhost:5000/v1';
+const backendRes = await fetch(`${backendUrl}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),

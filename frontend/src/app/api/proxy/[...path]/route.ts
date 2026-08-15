@@ -3,7 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 async function handleProxy(request: NextRequest) {
   // Extract target route path (e.g. /api/proxy/auth/profile -> auth/profile)
   const path = request.nextUrl.pathname.replace('/api/proxy/', '');
-  const targetUrl = `http://localhost:5000/v1/${path}`;
+  const backendUrl = process.env.BACKEND_API_URL || 'http://localhost:5000/v1';
+const targetUrl = `${backendUrl}/${path}`;
 
   // Retrieve access_token from HttpOnly cookie
   const token = request.cookies.get('access_token')?.value;
