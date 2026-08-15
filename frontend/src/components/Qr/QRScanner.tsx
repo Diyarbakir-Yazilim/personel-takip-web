@@ -1,49 +1,92 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Camera, Loader2 } from "lucide-react";
 import { Html5Qrcode } from "html5-qrcode";
 
-export default function QRScanner() {
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@/components/ui/alert";
+
+type QRScannerProps = {
+  onScan: (value: string) => void;
+  onError?: (message: string) => void;
+};
+
+export default function QRScanner({
+  onScan,
+  onError,
+}: QRScannerProps) {
   const scannerRef = useRef<Html5Qrcode | null>(null);
-  const [result, setResult] = useState("");
+  const mountedRef = useRef(false);
+  const startingRef = useRef(false);
+  const runningRef = useRef(false);
+  const scannedRef = useRef(false);
+
+  const onScanRef = useRef(onScan);
+  const onErrorRef = useRef(onError);
+
+  const [starting, setStarting] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
+    onScanRef.current = onScan;
+  }, [onScan]);
+
+  useEffect(() => {
+    onErrorRef.current = onError;
+  }, [onError]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    scannedRef.current = false;
+
     let scanner: Html5Qrcode | null = null;
-    let stopped = false;
+    let cancelled = false;
 
     const startScanner = async () => {
+      if (startingRef.current) {
+        return;
+      }
+
+      startingRef.current = true;
+
       try {
+        setStarting(true);
         setError("");
 
-        // Kameraları bul
-        const cameras = await Html5Qrcode.getCameras();
+        const element = document.getElementById(
+          "task-qr-reader"
+        );
 
-        console.log("Bulunan kameralar:", cameras);
-
-        if (!cameras || cameras.length === 0) {
-          throw new Error("Hiç kamera bulunamadı.");
+        if (!element) {
+          throw new Error(
+            "QR kamera alanı bulunamadı."
+          );
         }
 
-        // Önce arka kamerayı bulmaya çalış
-        const backCamera =
-          cameras.find((camera) =>
-            camera.label.toLowerCase().includes("back")
-          ) ||
-          cameras.find((camera) =>
-            camera.label.toLowerCase().includes("environment")
-          ) ||
-          cameras[cameras.length - 1];
+        scanner = new Html5Qrcode(
+          "task-qr-reader"
+        );
 
-        console.log("Seçilen kamera:", backCamera);
-
-        scanner = new Html5Qrcode("qr-reader");
         scannerRef.current = scanner;
 
-        if (stopped) return;
+        if (cancelled || !mountedRef.current) {
+          try {
+            scanner.clear();
+          } catch {
+            // Sessizce geç.
+          }
+
+          return;
+        }
 
         await scanner.start(
-          backCamera.id,
+          {
+            facingMode: "environment",
+          },
           {
             fps: 10,
             qrbox: {
@@ -52,68 +95,182 @@ export default function QRScanner() {
             },
             aspectRatio: 1,
           },
-          (decodedText) => {
-            console.log("QR OKUNDU:", decodedText);
-            setResult(decodedText);
+          async (decodedText) => {
+            if (
+              cancelled ||
+              !mountedRef.current ||
+              scannedRef.current
+            ) {
+              return;
+            }
+
+            scannedRef.current = true;
+
+            if (runningRef.current) {
+              runningRef.current = false;
+
+              try {
+                await scanner?.stop();
+              } catch {
+                // Kamera zaten durmuş olabilir.
+              }
+
+              try {
+                scanner?.clear();
+              } catch {
+                // Scanner zaten temizlenmiş olabilir.
+              }
+            }
+
+            if (
+              !cancelled &&
+              mountedRef.current
+            ) {
+              onScanRef.current(decodedText);
+            }
           },
           () => {
-            // QR bulunamadığında hiçbir şey yapma
+            // QR bulunamadığında hata göstermiyoruz.
           }
         );
-      } catch (err) {
-        console.error("QR kamera başlatma hatası:", err);
 
-        setError(
+        if (
+          cancelled ||
+          !mountedRef.current
+        ) {
+          try {
+            await scanner.stop();
+          } catch {
+            // Sessizce geç.
+          }
+
+          try {
+            scanner.clear();
+          } catch {
+            // Sessizce geç.
+          }
+
+          return;
+        }
+
+        runningRef.current = true;
+        setStarting(false);
+      } catch (err) {
+        if (
+          cancelled ||
+          !mountedRef.current
+        ) {
+          return;
+        }
+
+        const message =
           err instanceof Error
             ? err.message
-            : "Kamera başlatılamadı."
-        );
+            : "Kamera başlatılamadı.";
+
+        runningRef.current = false;
+        setStarting(false);
+        setError(message);
+
+        onErrorRef.current?.(message);
+      } finally {
+        startingRef.current = false;
       }
     };
 
-    startScanner();
+    void startScanner();
 
     return () => {
-      stopped = true;
+      cancelled = true;
+      mountedRef.current = false;
 
-      if (scanner) {
-        scanner
+      const currentScanner =
+        scannerRef.current;
+
+      scannerRef.current = null;
+
+      if (!currentScanner) {
+        startingRef.current = false;
+        return;
+      }
+
+      if (runningRef.current) {
+        runningRef.current = false;
+
+        void currentScanner
           .stop()
-          .then(() => {
-            scanner?.clear();
-          })
-          .catch(() => {});
+          .catch(() => undefined)
+          .finally(() => {
+            try {
+              currentScanner.clear();
+            } catch {
+              // Sessizce geç.
+            }
+
+            startingRef.current = false;
+          });
+      } else {
+        try {
+          currentScanner.clear();
+        } catch {
+          // Scanner henüz başlamadıysa sessizce geç.
+        }
+
+        startingRef.current = false;
       }
     };
   }, []);
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-6 p-6">
-      <div className="w-full max-w-md">
-        <div
-          id="qr-reader"
-          className="overflow-hidden rounded-2xl"
-        />
-      </div>
+    <div className="space-y-4">
+      {error ? (
+        <Alert variant="destructive">
+          <Camera className="size-4" />
 
-      {error && (
-        <div className="w-full max-w-md rounded-xl border border-red-300 bg-red-50 p-4 text-red-700">
-          <strong>Kamera hatası:</strong>
-          <p className="mt-1">{error}</p>
-        </div>
+          <AlertTitle>
+            Kamera açılamadı
+          </AlertTitle>
+
+          <AlertDescription>
+            {error}
+
+            <br />
+
+            <span className="mt-1 block text-xs">
+              Telefonda kamera iznini vermeniz ve
+              HTTPS üzerinden bağlanmanız gerekir.
+            </span>
+          </AlertDescription>
+        </Alert>
+      ) : (
+        <>
+          <div className="relative overflow-hidden rounded-2xl border bg-black">
+            <div
+              id="task-qr-reader"
+              className="min-h-[300px] w-full"
+            />
+
+            {starting && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/60">
+                <div className="flex items-center gap-2 rounded-xl bg-background px-4 py-3 text-sm font-medium">
+                  <Loader2 className="size-4 animate-spin" />
+                  Kamera başlatılıyor...
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-xl border bg-muted/40 p-3 text-center">
+            <p className="text-sm font-medium">
+              QR kodu kameranın ortasına getirin
+            </p>
+
+            <p className="mt-1 text-xs text-muted-foreground">
+              Kod otomatik olarak okunacaktır.
+            </p>
+          </div>
+        </>
       )}
-
-      {result && (
-        <div className="w-full max-w-md rounded-xl border bg-white p-4 shadow">
-          <h2 className="mb-2 text-lg font-bold">
-            ✅ QR Okundu
-          </h2>
-
-          <p className="break-all">
-            {result}
-          </p>
-        </div>
-      )}
-    </main>
+    </div>
   );
 }
