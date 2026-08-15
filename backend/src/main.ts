@@ -5,6 +5,8 @@ import { SwaggerModule } from '@nestjs/swagger';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as YAML from 'yaml';
+import { RedisIoAdapter } from './common/adapters/redis-io.adapter';
+
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -42,6 +44,16 @@ async function bootstrap() {
     console.error(`❌ openapi.yaml file not found! Searched location: ${yamlFilePath}`);
   }
 
+  const redisIoAdapter = new RedisIoAdapter(app);
+  try {
+    await redisIoAdapter.connectToRedis();
+    app.useWebSocketAdapter(redisIoAdapter);
+    console.log('⚡ Redis WebSocket Adapter connected successfully.');
+  } catch (error) {
+    console.warn('⚠️ Redis connection failed, falling back to default WebSocket adapter:', error.message);
+  }
+
+  
   const port = process.env.PORT ?? 5000;
   await app.listen(port);
   console.log(`🚀 Server is running at http://localhost:${port}/v1`);

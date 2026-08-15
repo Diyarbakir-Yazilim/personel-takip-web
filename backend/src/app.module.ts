@@ -6,9 +6,9 @@ import { PrismaModule } from './prisma/prisma.module';
 import { RedisModule } from './common/redis/redis.module';
 import { ScansModule } from './scans/scans.module';
 import { QrModule } from './qr/qr.module';
-
+import { FloorPlanModule } from './floor-plan/floor-plan.module';
 @Module({
-  imports: [AuthModule, PrismaModule, RedisModule, ScansModule, QrModule],
+  imports: [AuthModule, PrismaModule, RedisModule, ScansModule, QrModule, FloorPlanModule],
   controllers: [AppController],
   providers: [AppService],
 })
