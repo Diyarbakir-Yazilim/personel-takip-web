@@ -60,6 +60,8 @@ model User {
 
   tasks TaskInstance[]
   scans ScanEvent[]
+  auditLogs AuditLog[] 
+
 
   @@map("users")
 }
@@ -165,4 +167,23 @@ model DeviceIntegrity {
   scanEvent ScanEvent @relation(fields: [scanEventId], references: [id], onDelete: Cascade)
 
   @@map("device_integrities")
+}
+
+model AuditLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String?  @db.Uuid
+  method      String   // POST, PATCH, DELETE
+  path        String   // İstek atılan endpoint
+  statusCode  Int      // Dönen HTTP durum kodu
+  ip          String?  // İstek atanın IP adresi
+  userAgent   String?  // Tarayıcı veya istemci bilgisi
+  requestBody String?  // İstek gövdesi (JSON string)
+
+  createdAt   DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("audit_logs")
 }
