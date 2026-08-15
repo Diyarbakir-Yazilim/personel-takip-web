@@ -8,9 +8,11 @@ import {
   Request,
   UseGuards,
   BadRequestException,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { TasksService } from './tasks.service';
+import { UpdateTaskStatusDto } from './dto/update-task-status.dto';
 
 @Controller('tasks')
 @UseGuards(JwtAuthGuard)
@@ -60,5 +62,13 @@ export class TasksController {
     @Body() updateData?: { status?: string; checklist?: string[] }
   ) {
     return this.tasksService.updateTask(id, req.user.userId, updateData);
+  }
+
+  @Patch(':id/status')
+  async updateStatus(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateTaskStatusDto,
+  ) {
+    return this.tasksService.updateTaskStatus(id, dto.status);
   }
 }

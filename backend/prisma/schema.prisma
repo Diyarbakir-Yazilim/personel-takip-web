@@ -4,8 +4,7 @@
 // Get a free hosted Postgres database in seconds: `npx create-db`
 
 datasource db {
-  provider = "postgresql" 
-
+  provider = "postgresql"
 }
 
 generator client {
@@ -49,12 +48,12 @@ enum ScanMethod {
 // ==========================================
 
 model User {
-  id        String   @id @default(uuid()) @db.Uuid
-  email     String   @unique
-  password  String   
-  fullName  String
-  role      UserRole @default(STAFF)
-  deviceId  String?
+  id       String   @id @default(uuid()) @db.Uuid
+  email    String   @unique
+  password String
+  fullName String
+  role     UserRole @default(STAFF)
+  deviceId String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -65,13 +64,27 @@ model User {
   @@map("users")
 }
 
+model Floor {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String // Örn: "1. Kat", "Bodrum Kat"
+  level     Int      @default(0) // Kat sırası (-1, 0, 1, 2 vs.)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  zones Zone[]
+
+  @@map("floors")
+}
+
 model Zone {
   id        String   @id @default(uuid()) @db.Uuid
+  floorId   String?  @db.Uuid
   code      String   @unique
   name      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  floor Floor?         @relation(fields: [floorId], references: [id], onDelete: SetNull)
   tasks TaskInstance[]
 
   @@map("zones")
@@ -85,41 +98,40 @@ model TaskInstance {
   scheduledFor DateTime
   startedAt    DateTime?
   completedAt  DateTime?
+  durationSec  Int?
   checklist    String[]
-  
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
 
-  zone  Zone       @relation(fields: [zoneId], references: [id], onDelete: Cascade)
-  user  User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  zone  Zone        @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  user  User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
   scans ScanEvent[]
 
-  
   @@index([zoneId])
   @@index([userId])
   @@index([scheduledFor])
   @@index([status])
-  
-
   @@map("task_instances")
 }
+
 model ScanEvent {
-  id              String     @id @default(uuid()) @db.Uuid
-  idempotencyKey  String     @unique @db.Uuid
-  userId          String     @db.Uuid
-  taskId          String?    @db.Uuid
-  
+  id             String  @id @default(uuid()) @db.Uuid
+  idempotencyKey String  @unique @db.Uuid
+  userId         String  @db.Uuid
+  taskId         String? @db.Uuid
+
   token           String
   requestedAction ScanAction @default(AUTO)
   resolvedAction  ScanAction
   method          ScanMethod
-  
-  clientEventId   String     @db.Uuid
+
+  clientEventId   String   @db.Uuid
   clientScannedAt DateTime
-  riskScore       Int        @default(0)
+  riskScore       Int      @default(0)
   riskFlags       String[]
 
-  createdAt       DateTime   @default(now())
+  createdAt DateTime @default(now())
 
   user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   task            TaskInstance?    @relation(fields: [taskId], references: [id], onDelete: SetNull)
@@ -132,25 +144,25 @@ model ScanEvent {
 }
 
 model ScanLocation {
-  id          String    @id @default(uuid()) @db.Uuid
-  scanEventId String    @unique @db.Uuid
+  id          String @id @default(uuid()) @db.Uuid
+  scanEventId String @unique @db.Uuid
   lat         Float
   lng         Float
   accuracy    Float?
 
-  scanEvent   ScanEvent @relation(fields: [scanEventId], references: [id], onDelete: Cascade)
+  scanEvent ScanEvent @relation(fields: [scanEventId], references: [id], onDelete: Cascade)
 
   @@map("scan_locations")
 }
 
 model DeviceIntegrity {
-  id             String    @id @default(uuid()) @db.Uuid
-  scanEventId    String    @unique @db.Uuid
-  isRooted       Boolean   @default(false)
-  isEmulator     Boolean   @default(false)
-  isMockLocation Boolean   @default(false)
+  id             String  @id @default(uuid()) @db.Uuid
+  scanEventId    String  @unique @db.Uuid
+  isRooted       Boolean @default(false)
+  isEmulator     Boolean @default(false)
+  isMockLocation Boolean @default(false)
 
-  scanEvent      ScanEvent @relation(fields: [scanEventId], references: [id], onDelete: Cascade)
+  scanEvent ScanEvent @relation(fields: [scanEventId], references: [id], onDelete: Cascade)
 
   @@map("device_integrities")
 }
