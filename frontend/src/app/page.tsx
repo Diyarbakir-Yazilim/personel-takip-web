@@ -1,9 +1,9 @@
-
+import QRScanner from "@/components/Qr/QRScanner";
 
 export default function Home() {
   return (
-    <div className="flex">
-    
-    </div>
+    <main>
+      <QRScanner />
+    </main>
   );
 }
