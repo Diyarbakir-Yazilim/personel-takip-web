@@ -16,6 +16,8 @@
 # next.js
 /.next/
 /out/
+# Ignore any accidentally nested .next directories
+**/.next/
 
 # production
 /build
