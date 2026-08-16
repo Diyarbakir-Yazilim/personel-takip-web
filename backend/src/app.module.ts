@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { BullModule } from '@nestjs/bullmq';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { RetentionService } from './modules/retention/retention.service';
@@ -11,7 +12,21 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { QrModule } from './qr/qr.module';
 
 @Module({
-  imports: [AuthModule, PrismaModule, RedisModule, ScansModule, QrModule, TasksModule, ScheduleModule.forRoot()],
+  imports: [
+    BullModule.forRoot({
+      connection: {
+        host: process.env.REDIS_HOST || 'localhost',
+        port: Number(process.env.REDIS_PORT) || 6379,
+      },
+    }),
+    AuthModule,
+    PrismaModule,
+    RedisModule,
+    ScansModule,
+    QrModule,
+    TasksModule,
+    ScheduleModule.forRoot(),
+  ],
   controllers: [AppController],
   providers: [AppService, RetentionService],
 })
