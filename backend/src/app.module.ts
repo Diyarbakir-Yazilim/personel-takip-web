@@ -4,6 +4,7 @@ import { BullModule } from '@nestjs/bullmq';
 import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { RetentionService } from './modules/retention/retention.service';
 import { AuthModule } from './auth/auth.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { TasksModule } from './tasks/tasks.module';
@@ -37,6 +38,6 @@ import { FloorPlanModule } from './floor-plan/floor-plan.module';
     FloorPlanModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, RetentionService],
 })
 export class AppModule {}
