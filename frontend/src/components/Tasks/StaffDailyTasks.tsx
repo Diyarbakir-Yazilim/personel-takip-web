@@ -171,8 +171,14 @@ function getDateLabel() {
 export default function StaffDailyTasks() {
   const [tasks, setTasks] = useState<DailyTask[]>([]);
 
+  // Start as false to avoid SSR/CSR mismatch on disabled prop.
+  // Will be set to true immediately on the client inside useEffect.
   const [isLoading, setIsLoading] =
-    useState(true);
+    useState(false);
+
+  // Tracks whether the component has mounted on the client.
+  // Used to safely render date strings that depend on new Date().
+  const [mounted, setMounted] = useState(false);
 
   const [error, setError] =
     useState("");
@@ -480,6 +486,8 @@ export default function StaffDailyTasks() {
   );
 
   useEffect(() => {
+    // Mark as mounted so client-only renders (date, disabled) are safe.
+    setMounted(true);
     void loadTasks();
   }, [loadTasks]);
 
@@ -535,8 +543,8 @@ export default function StaffDailyTasks() {
               <ClipboardList className="size-5" />
             </div>
 
-            <span className="text-sm font-medium text-muted-foreground">
-              {getDateLabel()}
+            <span className="text-sm font-medium text-muted-foreground" suppressHydrationWarning>
+              {mounted ? getDateLabel() : ""}
             </span>
           </div>
 
