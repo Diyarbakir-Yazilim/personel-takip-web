@@ -6,7 +6,9 @@ import { TaskStatus } from '@prisma/client';
 export class TasksService {
   constructor(private readonly prisma: PrismaService) {}
 
+
   private formatTaskResponse(task: any) {
+
     return {
       id: task.id,
       zoneCode: task.zone.code,
@@ -195,7 +197,10 @@ export class TasksService {
   async updateTask(
     id: string,
     userId: string,
-    updateData?: any
+    updateData: {
+      status?: TaskStatus;
+      checklist?: string[];
+    }
   ) {
     const task = await this.prisma.taskInstance.findUnique({
       where: { id },

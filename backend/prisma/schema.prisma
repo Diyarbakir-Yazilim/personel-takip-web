@@ -58,33 +58,47 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tasks TaskInstance[]
-  scans ScanEvent[]
-  auditLogs AuditLog[] 
-
+  tasks     TaskInstance[]
+  scans     ScanEvent[]
+  auditLogs AuditLog[]
 
   @@map("users")
 }
 
-model Floor {
+model Building {
   id        String   @id @default(uuid()) @db.Uuid
-  name      String // Örn: "1. Kat", "Bodrum Kat"
-  level     Int      @default(0) // Kat sırası (-1, 0, 1, 2 vs.)
+  name      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  zones Zone[]
+  floors Floor[]
+
+  @@map("buildings")
+}
+
+model Floor {
+  id         String   @id @default(uuid()) @db.Uuid
+  buildingId String?  @db.Uuid
+  name       String // Örn: "1. Kat", "Bodrum Kat"
+  level      Int      @default(0) // Kat sırası (-1, 0, 1, 2 vs.)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  building Building? @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  zones    Zone[]
 
   @@map("floors")
 }
 
 model Zone {
-  id        String   @id @default(uuid()) @db.Uuid
-  floorId   String?  @db.Uuid
-  code      String   @unique
-  name      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id             String   @id @default(uuid()) @db.Uuid
+  floorId        String?  @db.Uuid
+  code           String   @unique
+  name           String
+  minDurationSec Int?
+  maxDurationSec Int?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   floor Floor?         @relation(fields: [floorId], references: [id], onDelete: SetNull)
   tasks TaskInstance[]
@@ -170,16 +184,16 @@ model DeviceIntegrity {
 }
 
 model AuditLog {
-  id          String   @id @default(uuid()) @db.Uuid
-  userId      String?  @db.Uuid
-  method      String   // POST, PATCH, DELETE
-  path        String   // İstek atılan endpoint
-  statusCode  Int      // Dönen HTTP durum kodu
-  ip          String?  // İstek atanın IP adresi
-  userAgent   String?  // Tarayıcı veya istemci bilgisi
-  requestBody String?  // İstek gövdesi (JSON string)
+  id          String  @id @default(uuid()) @db.Uuid
+  userId      String? @db.Uuid
+  method      String // POST, PATCH, DELETE
+  path        String // İstek atılan endpoint
+  statusCode  Int // Dönen HTTP durum kodu
+  ip          String? // İstek atanın IP adresi
+  userAgent   String? // Tarayıcı veya istemci bilgisi
+  requestBody String? // İstek gövdesi (JSON string)
 
-  createdAt   DateTime @default(now())
+  createdAt DateTime @default(now())
 
   user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 

@@ -12,6 +12,7 @@ import { RedisModule } from './common/redis/redis.module';
 import { ScansModule } from './scans/scans.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { QrModule } from './qr/qr.module';
+import { OrganizationsModule } from './organizations/organizations.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { QrModule } from './qr/qr.module';
     QrModule,
     TasksModule,
     ScheduleModule.forRoot(),
+    OrganizationsModule,
   ],
   controllers: [AppController],
   providers: [AppService, RetentionService, ExportProcessor],
