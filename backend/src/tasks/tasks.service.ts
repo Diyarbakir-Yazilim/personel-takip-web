@@ -216,7 +216,10 @@ export class TasksService {
 
     const updated = await this.prisma.taskInstance.update({
       where: { id },
-      data: updateData,
+      data: {
+        ...(updateData?.status && { status: updateData.status as TaskStatus }),
+        ...(updateData?.checklist && { checklist: updateData.checklist }),
+      },
       include: {
         zone: {
           select: {
@@ -239,40 +242,31 @@ export class TasksService {
       throw new NotFoundException('Task not found.');
     }
 
-    // 1. Return early if status is already unchanged
     if (task.status === newStatus) {
       return task;
     }
 
-    // 2. STATE MACHINE (Transition Rules)
-    // Completed (DONE) or Missed (MISSED) tasks are locked from updates
     if (task.status === TaskStatus.DONE || task.status === TaskStatus.MISSED) {
       throw new BadRequestException(`Tasks with status '${task.status}' cannot be updated.`);
     }
 
-    // Prevent direct completion from SCHEDULED or PENDING status without starting first
     if (newStatus === TaskStatus.DONE && task.status !== TaskStatus.IN_PROGRESS) {
       throw new BadRequestException('Task must be marked as IN_PROGRESS before it can be completed.');
     }
 
-    // 3. SERVER TIMESTAMPS & DURATION CALCULATION
-    const now = new Date(); // Pure server-side timestamp for anti-tamper security
+    const now = new Date();
     const updateData: Record<string, any> = { status: newStatus };
 
-    // IN_PROGRESS transition -> Record start time
     if (newStatus === TaskStatus.IN_PROGRESS) {
       updateData.startedAt = now;
     }
 
-    // DONE transition -> Record completion time and calculate durationSec
     if (newStatus === TaskStatus.DONE) {
       updateData.completedAt = now;
 
-      // Fallback to current time if start time is missing
       const startTime = task.startedAt ? task.startedAt.getTime() : now.getTime();
       const endTime = now.getTime();
 
-      // Safe duration calculation in seconds
       updateData.durationSec = Math.max(0, Math.floor((endTime - startTime) / 1000));
     }
 
