@@ -15,21 +15,14 @@ export class RetentionService {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - 90);
 
-    const result = await this.prisma.scanEvent.updateMany({
+    const result = await this.prisma.scanLocation.deleteMany({
       where: {
-        serverReceivedAt: { lt: cutoffDate },
-        OR: [
-          { latitude: { not: null } },
-          { longitude: { not: null } }
-        ]
-      },
-      data: {
-        latitude: null,
-        longitude: null,
-        accuracyM: null
+        scanEvent: {
+          clientScannedAt: { lt: cutoffDate }
+        }
       }
     });
 
-    this.logger.log(`Nullified GPS data for ${result.count} scan events older than 90 days.`);
+    this.logger.log(`Deleted GPS data for ${result.count} scan events older than 90 days.`);
   }
 }
