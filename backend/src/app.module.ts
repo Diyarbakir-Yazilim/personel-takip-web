@@ -5,6 +5,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { RetentionService } from './modules/retention/retention.service';
+import { ExportProcessor } from './jobs/export.processor';
 import { AuthModule } from './auth/auth.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { TasksModule } from './tasks/tasks.module';
@@ -28,6 +29,9 @@ import { FloorPlanModule } from './floor-plan/floor-plan.module';
       }),
       inject: [ConfigService],
     }),
+    BullModule.registerQueue({
+      name: 'export-queue',
+    }),
     ScheduleModule.forRoot(),
     AuthModule,
     PrismaModule,
@@ -38,6 +42,6 @@ import { FloorPlanModule } from './floor-plan/floor-plan.module';
     FloorPlanModule,
   ],
   controllers: [AppController],
-  providers: [AppService, RetentionService],
+  providers: [AppService, RetentionService, ExportProcessor],
 })
 export class AppModule {}
