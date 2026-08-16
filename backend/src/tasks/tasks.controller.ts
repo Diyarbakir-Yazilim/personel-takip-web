@@ -13,6 +13,7 @@ import {
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { TasksService } from './tasks.service';
 import { UpdateTaskStatusDto } from './dto/update-task-status.dto';
+import { TaskStatus } from '@prisma/client';
 
 @Controller('tasks')
 @UseGuards(JwtAuthGuard)
@@ -59,9 +60,9 @@ export class TasksController {
   updateTask(
     @Param('id') id: string,
     @Request() req: any,
-    @Body() updateData?: { status?: string; checklist?: string[] }
+    @Body() updateData?: { status?: TaskStatus; checklist?: string[] }
   ) {
-    return this.tasksService.updateTask(id, req.user.userId, updateData);
+    return this.tasksService.updateTask(id, req.user.userId, updateData ?? {});
   }
 
   @Patch(':id/status')

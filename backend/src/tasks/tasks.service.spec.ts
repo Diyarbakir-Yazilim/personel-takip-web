@@ -51,8 +51,9 @@ describe('TasksService', () => {
     expect(service).toBeDefined();
   });
 
-<<<<<<< HEAD
+
   describe('findMyDayTasks', () => {
+
     it('should return tasks for the current day', async () => {
       const result = await service.findMyDayTasks('user-1');
       expect(result).toHaveLength(1);
@@ -152,7 +153,7 @@ describe('TasksService', () => {
 
   describe('updateTask', () => {
     it('should update a task', async () => {
-      const updateData = { status: 'PENDING' };
+      const updateData = { status: TaskStatus.PENDING };
       const result = await service.updateTask('task-1', 'user-1', updateData);
       expect(result.id).toBe('task-1');
       expect(prisma.taskInstance.update).toHaveBeenCalledWith({

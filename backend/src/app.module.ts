@@ -7,9 +7,10 @@ import { TasksModule } from './tasks/tasks.module';
 import { RedisModule } from './common/redis/redis.module';
 import { ScansModule } from './scans/scans.module';
 import { QrModule } from './qr/qr.module';
+import { OrganizationsModule } from './organizations/organizations.module';
 
 @Module({
-  imports: [AuthModule, PrismaModule, RedisModule, ScansModule, QrModule, TasksModule],
+  imports: [AuthModule, PrismaModule, RedisModule, ScansModule, QrModule, TasksModule, OrganizationsModule],
   controllers: [AppController],
   providers: [AppService],
 })

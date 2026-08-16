@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { TasksController } from './tasks.controller';
 import { TasksService } from './tasks.service';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { TaskStatus } from '@prisma/client';
 
 describe('TasksController', () => {
   let controller: TasksController;
@@ -116,7 +117,7 @@ describe('TasksController', () => {
 
   describe('updateTask', () => {
     it('should update a task', async () => {
-      const updateData = { status: 'PENDING' };
+      const updateData = { status: TaskStatus.PENDING };
       const result = await controller.updateTask('task-1', { user: mockUser }, updateData);
       expect(result).toEqual(mockTask);
       expect(service.updateTask).toHaveBeenCalledWith('task-1', mockUser.userId, updateData);

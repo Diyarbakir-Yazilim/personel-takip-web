@@ -6,8 +6,9 @@ import { TaskStatus } from '@prisma/client';
 export class TasksService {
   constructor(private readonly prisma: PrismaService) {}
 
-<<<<<<< HEAD
+
   private formatTaskResponse(task: any) {
+
     return {
       id: task.id,
       zoneCode: task.zone.code,
@@ -197,7 +198,7 @@ export class TasksService {
     id: string,
     userId: string,
     updateData: {
-      status?: string;
+      status?: TaskStatus;
       checklist?: string[];
     }
   ) {
