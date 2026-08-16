@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
-
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import {
   AlertCircle,
   CheckCircle2,
@@ -18,32 +12,14 @@ import {
   RefreshCcw,
   ClipboardList,
   Timer,
-  X,
 } from "lucide-react";
 
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-
 import { Badge } from "@/components/ui/badge";
-
 import { Progress } from "@/components/ui/progress";
-
 import { Separator } from "@/components/ui/separator";
-
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
-
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -51,17 +27,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-
-import {
-  Alert,
-  AlertDescription,
-  AlertTitle,
-} from "@/components/ui/alert";
-
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
-
 import { cn } from "@/lib/utils";
-
 import QRScanner from "../Qr/QRScanner";
 
 type TaskStatus =
@@ -86,238 +54,129 @@ type DailyTask = {
 
 type QRAction = "start" | "complete";
 
-const statusConfig: Record<
-  TaskStatus,
-  {
-    label: string;
-    className: string;
-  }
-> = {
-  SCHEDULED: {
-    label: "Planlandı",
-    className:
-      "border-slate-200 bg-slate-50 text-slate-700",
-  },
-
-  PENDING: {
-    label: "Bekliyor",
-    className:
-      "border-amber-200 bg-amber-50 text-amber-800",
-  },
-
-  IN_PROGRESS: {
-    label: "Devam ediyor",
-    className:
-      "border-blue-200 bg-blue-50 text-blue-800",
-  },
-
-  DONE: {
-    label: "Tamamlandı",
-    className:
-      "border-emerald-200 bg-emerald-50 text-emerald-800",
-  },
-
-  MISSED: {
-    label: "Gecikti",
-    className:
-      "border-red-200 bg-red-50 text-red-800",
-  },
-
-  FLAGGED: {
-    label: "Kontrol gerekli",
-    className:
-      "border-orange-200 bg-orange-50 text-orange-800",
-  },
+const STATUS_CONFIG: Record<TaskStatus, { label: string; className: string }> = {
+  SCHEDULED: { label: "Planlandı", className: "border-slate-200 bg-slate-50 text-slate-700" },
+  PENDING: { label: "Bekliyor", className: "border-amber-200 bg-amber-50 text-amber-800" },
+  IN_PROGRESS: { label: "Devam Ediyor", className: "border-blue-200 bg-blue-50 text-blue-800" },
+  DONE: { label: "Tamamlandı", className: "border-emerald-200 bg-emerald-50 text-emerald-800" },
+  MISSED: { label: "Gecikti", className: "border-red-200 bg-red-50 text-red-800" },
+  FLAGGED: { label: "Kontrol Gerekli", className: "border-orange-200 bg-orange-50 text-orange-800" },
 };
 
-function getStoredToken() {
-  if (typeof window === "undefined") {
-    return null;
-  }
+function getStoredToken(): string | null {
+  if (typeof window === "undefined") return null;
 
   const localToken =
-    window.localStorage.getItem("access_token") ||
-    window.localStorage.getItem("token");
+    window.localStorage.getItem("access_token") || window.localStorage.getItem("token");
 
-  if (localToken) {
-    return localToken;
+  if (localToken) return localToken;
+
+  const match = document.cookie.match(/(?:^|; )token=([^;]*)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+function formatTime(value: string | null): string {
+  if (!value) return "";
+  try {
+    return new Intl.DateTimeFormat("tr-TR", {
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date(value));
+  } catch {
+    return "";
   }
-
-  const cookieToken = document.cookie
-    .split("; ")
-    .find((row) => row.startsWith("token="))
-    ?.split("=")[1];
-
-  return cookieToken
-    ? decodeURIComponent(cookieToken)
-    : null;
-}
-
-function formatTime(value: string) {
-  return new Intl.DateTimeFormat("tr-TR", {
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(value));
-}
-
-function getDateLabel() {
-  return new Intl.DateTimeFormat("tr-TR", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  }).format(new Date());
 }
 
 export default function StaffDailyTasks() {
   const [tasks, setTasks] = useState<DailyTask[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string>("");
+  const [actionError, setActionError] = useState<string>("");
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  // Start as false to avoid SSR/CSR mismatch on disabled prop.
-  // Will be set to true immediately on the client inside useEffect.
-  const [isLoading, setIsLoading] =
-    useState(false);
+  const [dateLabel, setDateLabel] = useState<string>("");
+  const [qrOpen, setQrOpen] = useState<boolean>(false);
+  const [qrAction, setQrAction] = useState<QRAction | null>(null);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<string>("all");
 
-  // Tracks whether the component has mounted on the client.
-  // Used to safely render date strings that depend on new Date().
-  const [mounted, setMounted] = useState(false);
-
-  const [error, setError] =
-    useState("");
-
-  const [actionError, setActionError] =
-    useState("");
-
-  const [actionLoading, setActionLoading] =
-    useState<string | null>(null);
-
-  /*
-   * QR sadece butona basıldığında açılacak.
-   */
-  const [qrOpen, setQrOpen] =
-    useState(false);
-
-  const [qrAction, setQrAction] =
-    useState<QRAction | null>(null);
-
-  const [selectedTaskId, setSelectedTaskId] =
-    useState<string | null>(null);
+  const isProcessingQr = useRef<boolean>(false);
 
   const apiBaseUrl = useMemo(
-    () =>
-      (process.env.NEXT_PUBLIC_API_URL || "")
-        .replace(/\/$/, ""),
+    () => (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, ""),
     []
   );
 
-  /*
-   * ---------------------------------------
-   * GÖREVLERİ GETİR
-   * GET /tasks/my-day
-   * ---------------------------------------
-   */
+  useEffect(() => {
+    setDateLabel(
+      new Intl.DateTimeFormat("tr-TR", {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+      }).format(new Date())
+    );
+  }, []);
 
   const loadTasks = useCallback(async () => {
     setIsLoading(true);
     setError("");
 
     const token = getStoredToken();
-
     if (!token) {
       setTasks([]);
-      setError(
-        "Görevleri görmek için oturum açmanız gerekiyor."
-      );
+      setError("Görevleri görmek için oturum açmanız gerekiyor.");
       setIsLoading(false);
       return;
     }
 
     try {
-      const endpoint = apiBaseUrl
-        ? `${apiBaseUrl}/tasks/my-day`
-        : "/api/tasks/my-day";
-
+      const endpoint = apiBaseUrl ? `${apiBaseUrl}/tasks/my-day` : "/api/tasks/my-day";
       const response = await fetch(endpoint, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
 
-      if (!response.ok) {
-        throw new Error(
-          "Görev listesi alınamadı."
-        );
-      }
+      if (!response.ok) throw new Error("Görev listesi alınamadı.");
 
       const data = await response.json();
-
       const taskList = Array.isArray(data)
         ? data
         : Array.isArray(data?.data)
-          ? data.data
-          : Array.isArray(data?.tasks)
-            ? data.tasks
-            : [];
+        ? data.data
+        : Array.isArray(data?.tasks)
+        ? data.tasks
+        : [];
 
       setTasks(taskList as DailyTask[]);
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Beklenmeyen bir hata oluştu."
-      );
+      setError(err instanceof Error ? err.message : "Beklenmeyen bir hata oluştu.");
     } finally {
       setIsLoading(false);
     }
   }, [apiBaseUrl]);
 
-  /*
-   * ---------------------------------------
-   * QR DIALOG AÇ
-   * ---------------------------------------
-   */
+  useEffect(() => {
+    void loadTasks();
+  }, [loadTasks]);
 
-  const openQR = useCallback(
-    (
-      taskId: string,
-      action: QRAction
-    ) => {
-      setActionError("");
-
-      setSelectedTaskId(taskId);
-
-      setQrAction(action);
-
-      setQrOpen(true);
-    },
-    []
-  );
-
-  /*
-   * ---------------------------------------
-   * QR OKUNDU
-   * ---------------------------------------
-   *
-   * QRScanner -> onScan
-   *           ôô
-   * handleQRScan
-   *           ôô
-   * PATCH /tasks/:id/start
-   * veya
-   * PATCH /tasks/:id/complete
-   */
+  const openQR = useCallback((taskId: string, action: QRAction) => {
+    setActionError("");
+    setSelectedTaskId(taskId);
+    setQrAction(action);
+    setQrOpen(true);
+    isProcessingQr.current = false;
+  }, []);
 
   const handleQRScan = useCallback(
     async (qrValue: string) => {
-      if (!selectedTaskId || !qrAction) {
-        return;
-      }
+      if (!selectedTaskId || !qrAction || isProcessingQr.current) return;
+
+      isProcessingQr.current = true;
 
       const token = getStoredToken();
-
       if (!token) {
-        setActionError(
-          "Oturum açmanız gerekiyor."
-        );
+        setActionError("Oturum açmanız gerekiyor.");
         setQrOpen(false);
+        isProcessingQr.current = false;
         return;
       }
 
@@ -325,7 +184,6 @@ export default function StaffDailyTasks() {
       const action = qrAction;
 
       setQrOpen(false);
-
       setActionLoading(taskId);
       setActionError("");
 
@@ -334,32 +192,19 @@ export default function StaffDailyTasks() {
           ? `${apiBaseUrl}/tasks/${taskId}/${action}`
           : `/api/tasks/${taskId}/${action}`;
 
-        const response = await fetch(
-          endpoint,
-          {
-            method: "PATCH",
-
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type":
-                "application/json",
-            },
-
-            body: JSON.stringify({
-              qrCode: qrValue,
-            }),
-          }
-        );
+        const response = await fetch(endpoint, {
+          method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ qrCode: qrValue }),
+        });
 
         if (!response.ok) {
-          const errorData =
-            await response
-              .json()
-              .catch(() => ({}));
-
+          const errorData = await response.json().catch(() => ({}));
           throw new Error(
-            errorData.message ||
-              `İşlem başarısız: ${response.statusText}`
+            errorData.message || `İşlem başarısız: ${response.statusText}`
           );
         }
 
@@ -371,49 +216,28 @@ export default function StaffDailyTasks() {
 
         if (updatedTask?.id) {
           setTasks((prev) =>
-            prev.map((task) =>
-              task.id === taskId
-                ? (updatedTask as DailyTask)
-                : task
-            )
+            prev.map((task) => (task.id === taskId ? (updatedTask as DailyTask) : task))
           );
         } else {
           await loadTasks();
         }
       } catch (err) {
-        setActionError(
-          err instanceof Error
-            ? err.message
-            : "Beklenmeyen bir hata oluştu."
-        );
+        setActionError(err instanceof Error ? err.message : "Beklenmeyen bir hata oluştu.");
       } finally {
         setActionLoading(null);
         setSelectedTaskId(null);
         setQrAction(null);
+        isProcessingQr.current = false;
       }
     },
-    [
-      apiBaseUrl,
-      qrAction,
-      selectedTaskId,
-    ]
+    [apiBaseUrl, qrAction, selectedTaskId, loadTasks]
   );
-
-  /*
-   * ---------------------------------------
-   * FLAG
-   * PATCH /tasks/:id/flag
-   * ---------------------------------------
-   */
 
   const handleFlag = useCallback(
     async (taskId: string) => {
       const token = getStoredToken();
-
       if (!token) {
-        setActionError(
-          "Oturum açmanız gerekiyor."
-        );
+        setActionError("Oturum açmanız gerekiyor.");
         return;
       }
 
@@ -425,33 +249,19 @@ export default function StaffDailyTasks() {
           ? `${apiBaseUrl}/tasks/${taskId}/flag`
           : `/api/tasks/${taskId}/flag`;
 
-        const response = await fetch(
-          endpoint,
-          {
-            method: "PATCH",
-
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type":
-                "application/json",
-            },
-
-            body: JSON.stringify({
-              reason:
-                "Manuel olarak işaretlendi",
-            }),
-          }
-        );
+        const response = await fetch(endpoint, {
+          method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ reason: "Manuel olarak işaretlendi" }),
+        });
 
         if (!response.ok) {
-          const errorData =
-            await response
-              .json()
-              .catch(() => ({}));
-
+          const errorData = await response.json().catch(() => ({}));
           throw new Error(
-            errorData.message ||
-              `İşlem başarısız: ${response.statusText}`
+            errorData.message || `İşlem başarısız: ${response.statusText}`
           );
         }
 
@@ -463,195 +273,120 @@ export default function StaffDailyTasks() {
 
         if (updatedTask?.id) {
           setTasks((prev) =>
-            prev.map((task) =>
-              task.id === taskId
-                ? (updatedTask as DailyTask)
-                : task
-            )
+            prev.map((task) => (task.id === taskId ? (updatedTask as DailyTask) : task))
           );
         } else {
           await loadTasks();
         }
       } catch (err) {
-        setActionError(
-          err instanceof Error
-            ? err.message
-            : "Beklenmeyen bir hata oluştu."
-        );
+        setActionError(err instanceof Error ? err.message : "Beklenmeyen bir hata oluştu.");
       } finally {
         setActionLoading(null);
       }
     },
-    [apiBaseUrl]
+    [apiBaseUrl, loadTasks]
   );
 
-  useEffect(() => {
-    // Mark as mounted so client-only renders (date, disabled) are safe.
-    setMounted(true);
-    void loadTasks();
-  }, [loadTasks]);
+  const stats = useMemo(() => {
+    const total = tasks.length;
+    const pending = tasks.filter((t) => t.status === "SCHEDULED" || t.status === "PENDING").length;
+    const inProgress = tasks.filter((t) => t.status === "IN_PROGRESS").length;
+    const completed = tasks.filter((t) => t.status === "DONE").length;
+    const rate = total > 0 ? Math.round((completed / total) * 100) : 0;
 
-  /*
-   * ---------------------------------------
-   * İSTATİSTİKLER
-   * ---------------------------------------
-   */
+    return { total, pending, inProgress, completed, rate };
+  }, [tasks]);
 
-  const totalTasks = tasks.length;
-
-  const pendingTasks = tasks.filter(
-    (task) =>
-      task.status === "SCHEDULED" ||
-      task.status === "PENDING"
-  ).length;
-
-  const inProgressTasks = tasks.filter(
-    (task) =>
-      task.status === "IN_PROGRESS"
-  ).length;
-
-  const completedTasks = tasks.filter(
-    (task) =>
-      task.status === "DONE"
-  ).length;
-
-  const completionRate =
-    totalTasks > 0
-      ? Math.round(
-          (completedTasks /
-            totalTasks) *
-            100
-        )
-      : 0;
-
-  const visibleTasks = tasks;
-
-  /*
-   * ---------------------------------------
-   * UI
-   * ---------------------------------------
-   */
+  const filteredTasks = useMemo(() => {
+    switch (activeTab) {
+      case "pending":
+        return tasks.filter((t) => t.status === "SCHEDULED" || t.status === "PENDING");
+      case "progress":
+        return tasks.filter((t) => t.status === "IN_PROGRESS");
+      case "done":
+        return tasks.filter((t) => t.status === "DONE");
+      default:
+        return tasks;
+    }
+  }, [tasks, activeTab]);
 
   return (
     <section className="w-full space-y-6">
       {/* HEADER */}
-
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <div className="mb-3 flex items-center gap-2">
             <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
               <ClipboardList className="size-5" />
             </div>
-
-            <span className="text-sm font-medium text-muted-foreground" suppressHydrationWarning>
-              {mounted ? getDateLabel() : ""}
+            <span className="text-sm font-medium text-muted-foreground">
+              {dateLabel || "..."}
             </span>
           </div>
-
-          <h1 className="text-3xl font-bold tracking-tight">
-            Bugünkü Görevler
-          </h1>
-
+          <h1 className="text-3xl font-bold tracking-tight">Bugünkü Görevler</h1>
           <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-            Atanan görevlerini takip edebilir,
-            görevleri QR kod ile başlatıp
-            tamamlayabilirsin.
+            Atanan görevlerini takip edebilir, görevleri QR kod ile başlatıp tamamlayabilirsin.
           </p>
         </div>
 
         <Button
           type="button"
           variant="outline"
-          onClick={() =>
-            void loadTasks()
-          }
+          onClick={() => void loadTasks()}
           disabled={isLoading}
           className="gap-2"
         >
-          <RefreshCcw
-            className={cn(
-              "size-4",
-              isLoading &&
-                "animate-spin"
-            )}
-          />
-
+          <RefreshCcw className={cn("size-4", isLoading && "animate-spin")} />
           Yenile
         </Button>
       </div>
 
-      {/* ERROR */}
-
+      {/* ERRORS */}
       {error && (
         <Alert variant="destructive">
           <AlertCircle className="size-4" />
-
-          <AlertTitle>
-            Görevler yüklenemedi
-          </AlertTitle>
-
-          <AlertDescription>
-            {error}
-          </AlertDescription>
+          <AlertTitle>Görevler yüklenemedi</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
 
       {actionError && (
         <Alert variant="destructive">
           <AlertCircle className="size-4" />
-
-          <AlertTitle>
-            İşlem gerçekleştirilemedi
-          </AlertTitle>
-
-          <AlertDescription>
-            {actionError}
-          </AlertDescription>
+          <AlertTitle>İşlem gerçekleştirilemedi</AlertTitle>
+          <AlertDescription>{actionError}</AlertDescription>
         </Alert>
       )}
 
-      {/* LOADING */}
-
+      {/* LOADING SKELETON */}
       {isLoading ? (
         <div className="space-y-4">
-          {[1, 2, 3].map(
-            (item) => (
-              <Card key={item}>
-                <CardContent className="space-y-4 p-5">
-                  <div className="flex justify-between">
-                    <div className="space-y-2">
-                      <Skeleton className="h-5 w-40" />
-                      <Skeleton className="h-4 w-24" />
-                    </div>
-
-                    <Skeleton className="h-7 w-24 rounded-full" />
+          {[1, 2, 3].map((item) => (
+            <Card key={item}>
+              <CardContent className="space-y-4 p-5">
+                <div className="flex justify-between">
+                  <div className="space-y-2">
+                    <Skeleton className="h-5 w-40" />
+                    <Skeleton className="h-4 w-24" />
                   </div>
-
-                  <Skeleton className="h-4 w-full" />
-
-                  <Skeleton className="h-10 w-32" />
-                </CardContent>
-              </Card>
-            )
-          )}
+                  <Skeleton className="h-7 w-24 rounded-full" />
+                </div>
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-10 w-32" />
+              </CardContent>
+            </Card>
+          ))}
         </div>
       ) : (
         <>
           {/* STATS */}
-
           {!error && (
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
               <Card>
                 <CardContent className="p-4">
-                  <p className="text-xs text-muted-foreground">
-                    Toplam
-                  </p>
-
+                  <p className="text-xs text-muted-foreground">Toplam</p>
                   <div className="mt-2 flex items-center justify-between">
-                    <span className="text-2xl font-bold">
-                      {totalTasks}
-                    </span>
-
+                    <span className="text-2xl font-bold">{stats.total}</span>
                     <ClipboardList className="size-5 text-primary" />
                   </div>
                 </CardContent>
@@ -659,15 +394,9 @@ export default function StaffDailyTasks() {
 
               <Card>
                 <CardContent className="p-4">
-                  <p className="text-xs text-muted-foreground">
-                    Bekleyen
-                  </p>
-
+                  <p className="text-xs text-muted-foreground">Bekleyen</p>
                   <div className="mt-2 flex items-center justify-between">
-                    <span className="text-2xl font-bold">
-                      {pendingTasks}
-                    </span>
-
+                    <span className="text-2xl font-bold">{stats.pending}</span>
                     <Clock3 className="size-5 text-amber-500" />
                   </div>
                 </CardContent>
@@ -675,15 +404,9 @@ export default function StaffDailyTasks() {
 
               <Card>
                 <CardContent className="p-4">
-                  <p className="text-xs text-muted-foreground">
-                    Devam Eden
-                  </p>
-
+                  <p className="text-xs text-muted-foreground">Devam Eden</p>
                   <div className="mt-2 flex items-center justify-between">
-                    <span className="text-2xl font-bold">
-                      {inProgressTasks}
-                    </span>
-
+                    <span className="text-2xl font-bold">{stats.inProgress}</span>
                     <Timer className="size-5 text-blue-500" />
                   </div>
                 </CardContent>
@@ -691,15 +414,9 @@ export default function StaffDailyTasks() {
 
               <Card>
                 <CardContent className="p-4">
-                  <p className="text-xs text-muted-foreground">
-                    Tamamlanan
-                  </p>
-
+                  <p className="text-xs text-muted-foreground">Tamamlanan</p>
                   <div className="mt-2 flex items-center justify-between">
-                    <span className="text-2xl font-bold">
-                      {completedTasks}
-                    </span>
-
+                    <span className="text-2xl font-bold">{stats.completed}</span>
                     <CheckCircle2 className="size-5 text-emerald-500" />
                   </div>
                 </CardContent>
@@ -708,211 +425,69 @@ export default function StaffDailyTasks() {
           )}
 
           {/* PROGRESS */}
-
-          {!error &&
-            totalTasks > 0 && (
-              <Card>
-                <CardContent className="space-y-3 p-5">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-semibold">
-                        Günlük ilerleme
-                      </p>
-
-                      <p className="text-xs text-muted-foreground">
-                        Tamamlanan görev oranı
-                      </p>
-                    </div>
-
-                    <span className="font-bold">
-                      %{completionRate}
-                    </span>
+          {!error && stats.total > 0 && (
+            <Card>
+              <CardContent className="space-y-3 p-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-semibold">Günlük İlerleme</p>
+                    <p className="text-xs text-muted-foreground">Tamamlanan görev oranı</p>
                   </div>
-
-                  <Progress
-                    value={
-                      completionRate
-                    }
-                  />
-                </CardContent>
-              </Card>
-            )}
+                  <span className="font-bold">%{stats.rate}</span>
+                </div>
+                <Progress value={stats.rate} />
+              </CardContent>
+            </Card>
+          )}
 
           {/* TABS */}
-
           {!error && (
-            <Tabs
-              defaultValue="all"
-              className="w-full"
-            >
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <h2 className="text-lg font-semibold">
-                    Görev Listesi
-                  </h2>
-
-                  <p className="text-sm text-muted-foreground">
-                    Bugün sana atanan görevler
-                  </p>
+                  <h2 className="text-lg font-semibold">Görev Listesi</h2>
+                  <p className="text-sm text-muted-foreground">Bugün sana atanan görevler</p>
                 </div>
 
                 <TabsList className="w-full sm:w-auto">
-                  <TabsTrigger value="all">
-                    Tümü
-                  </TabsTrigger>
-
-                  <TabsTrigger value="pending">
-                    Bekleyen
-                  </TabsTrigger>
-
-                  <TabsTrigger value="progress">
-                    Devam Eden
-                  </TabsTrigger>
-
-                  <TabsTrigger value="done">
-                    Tamamlanan
-                  </TabsTrigger>
+                  <TabsTrigger value="all">Tümü ({stats.total})</TabsTrigger>
+                  <TabsTrigger value="pending">Bekleyen ({stats.pending})</TabsTrigger>
+                  <TabsTrigger value="progress">Devam Eden ({stats.inProgress})</TabsTrigger>
+                  <TabsTrigger value="done">Tamamlanan ({stats.completed})</TabsTrigger>
                 </TabsList>
               </div>
 
-              <TabsContent
-                value="all"
-                className="mt-4"
-              >
+              <div className="mt-4">
                 <TaskList
-                  tasks={visibleTasks}
-                  actionLoading={
-                    actionLoading
-                  }
-                  onStart={(id) =>
-                    openQR(
-                      id,
-                      "start"
-                    )
-                  }
-                  onComplete={(id) =>
-                    openQR(
-                      id,
-                      "complete"
-                    )
-                  }
+                  tasks={filteredTasks}
+                  actionLoading={actionLoading}
+                  onStart={(id) => openQR(id, "start")}
+                  onComplete={(id) => openQR(id, "complete")}
                   onFlag={handleFlag}
                 />
-              </TabsContent>
-
-              <TabsContent
-                value="pending"
-                className="mt-4"
-              >
-                <TaskList
-                  tasks={tasks.filter(
-                    (task) =>
-                      task.status ===
-                        "SCHEDULED" ||
-                      task.status ===
-                        "PENDING"
-                  )}
-                  actionLoading={
-                    actionLoading
-                  }
-                  onStart={(id) =>
-                    openQR(
-                      id,
-                      "start"
-                    )
-                  }
-                  onComplete={(id) =>
-                    openQR(
-                      id,
-                      "complete"
-                    )
-                  }
-                  onFlag={handleFlag}
-                />
-              </TabsContent>
-
-              <TabsContent
-                value="progress"
-                className="mt-4"
-              >
-                <TaskList
-                  tasks={tasks.filter(
-                    (task) =>
-                      task.status ===
-                      "IN_PROGRESS"
-                  )}
-                  actionLoading={
-                    actionLoading
-                  }
-                  onStart={(id) =>
-                    openQR(
-                      id,
-                      "start"
-                    )
-                  }
-                  onComplete={(id) =>
-                    openQR(
-                      id,
-                      "complete"
-                    )
-                  }
-                  onFlag={handleFlag}
-                />
-              </TabsContent>
-
-              <TabsContent
-                value="done"
-                className="mt-4"
-              >
-                <TaskList
-                  tasks={tasks.filter(
-                    (task) =>
-                      task.status === "DONE"
-                  )}
-                  actionLoading={
-                    actionLoading
-                  }
-                  onStart={(id) =>
-                    openQR(
-                      id,
-                      "start"
-                    )
-                  }
-                  onComplete={(id) =>
-                    openQR(
-                      id,
-                      "complete"
-                    )
-                  }
-                  onFlag={handleFlag}
-                />
-              </TabsContent>
+              </div>
             </Tabs>
           )}
         </>
       )}
 
       {/* QR DIALOG */}
-
       <Dialog
         open={qrOpen}
         onOpenChange={(open) => {
           setQrOpen(open);
-
           if (!open) {
             setSelectedTaskId(null);
             setQrAction(null);
+            isProcessingQr.current = false;
           }
         }}
       >
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
-              {qrAction === "start"
-                ? "Görevi Başlat"
-                : "Görevi Tamamla"}
+              {qrAction === "start" ? "Görevi Başlat" : "Görevi Tamamla"}
             </DialogTitle>
-
             <DialogDescription>
               {qrAction === "start"
                 ? "Göreve başlamak için görev alanındaki QR kodu okutun."
@@ -920,14 +495,14 @@ export default function StaffDailyTasks() {
             </DialogDescription>
           </DialogHeader>
 
-          <QRScanner
-            onScan={handleQRScan}
-            onError={(message) =>
-              setActionError(
-                `Kamera hatası: ${message}`
-              )
-            }
-          />
+          <div className="overflow-hidden rounded-lg">
+            {qrOpen && (
+              <QRScanner
+                onScan={handleQRScan}
+                onError={(message) => setActionError(`Kamera hatası: ${message}`)}
+              />
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </section>
@@ -936,7 +511,7 @@ export default function StaffDailyTasks() {
 
 /*
 |--------------------------------------------------------------------------
-| TASK LIST
+| TASK LIST COMPONENT
 |--------------------------------------------------------------------------
 */
 
@@ -960,13 +535,9 @@ function TaskList({
       <Card className="border-dashed">
         <CardContent className="flex flex-col items-center justify-center py-14 text-center">
           <ClipboardList className="mb-4 size-10 text-muted-foreground" />
-
-          <h3 className="font-semibold">
-            Bu kategoride Görev yok
-          </h3>
-
+          <h3 className="font-semibold">Bu kategoride görev bulunamadı</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            Şu anda gösterilecek görev bulunmuyor
+            Şu anda gösterilecek bir görev bulunmuyor.
           </p>
         </CardContent>
       </Card>
@@ -976,42 +547,28 @@ function TaskList({
   return (
     <div className="grid gap-4">
       {tasks.map((task) => {
-        const config =
-          statusConfig[task.status];
+        const config = STATUS_CONFIG[task.status] || {
+          label: task.status,
+          className: "border-gray-200 bg-gray-50 text-gray-700",
+        };
 
-        const isLoading =
-          actionLoading === task.id;
+        const isLoading = actionLoading === task.id;
 
         return (
-          <Card
-            key={task.id}
-            className="overflow-hidden transition-shadow hover:shadow-md"
-          >
+          <Card key={task.id} className="overflow-hidden transition-shadow hover:shadow-md">
             <CardHeader className="pb-3">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="flex min-w-0 items-center gap-3">
                   <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
                     <MapPin className="size-5" />
                   </div>
-
                   <div className="min-w-0">
-                    <CardTitle className="truncate text-base">
-                      {task.zoneName}
-                    </CardTitle>
-
-                    <CardDescription>
-                      {task.zoneCode}
-                    </CardDescription>
+                    <CardTitle className="truncate text-base">{task.zoneName}</CardTitle>
+                    <CardDescription>{task.zoneCode}</CardDescription>
                   </div>
                 </div>
 
-                <Badge
-                  variant="outline"
-                  className={cn(
-                    "w-fit",
-                    config.className
-                  )}
-                >
+                <Badge variant="outline" className={cn("w-fit shrink-0", config.className)}>
                   {config.label}
                 </Badge>
               </div>
@@ -1021,68 +578,40 @@ function TaskList({
               <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
                 <span className="flex items-center gap-1.5">
                   <Clock3 className="size-4" />
-
-                  {formatTime(
-                    task.scheduledFor
-                  )}
+                  {formatTime(task.scheduledFor)}
                 </span>
 
                 <span className="flex items-center gap-1.5">
                   <ClipboardList className="size-4" />
-
                   {task.checklistCount} kontrol
                 </span>
 
                 {task.completedAt && (
                   <span className="flex items-center gap-1.5 text-emerald-600">
                     <CheckCircle2 className="size-4" />
-
-                    Tamamlandı{" "}
-                    {formatTime(
-                      task.completedAt
-                    )}
+                    Tamamlandı {formatTime(task.completedAt)}
                   </span>
                 )}
               </div>
 
-              {task.checklist.length > 0 && (
+              {task.checklist && task.checklist.length > 0 && (
                 <>
                   <Separator />
-
                   <div>
                     <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                       Kontrol Listesi
                     </p>
-
                     <div className="grid gap-2">
-                      {task.checklist
-                        .slice(0, 4)
-                        .map(
-                          (
-                            item,
-                            index
-                          ) => (
-                            <div
-                              key={`${task.id}-${index}`}
-                              className="flex items-start gap-2 text-sm"
-                            >
-                              <span className="mt-2 size-1.5 shrink-0 rounded-full bg-muted-foreground" />
-
-                              <span>
-                                {item}
-                              </span>
-                            </div>
-                          )
-                        )}
+                      {task.checklist.slice(0, 4).map((item, index) => (
+                        <div key={`${task.id}-${index}`} className="flex items-start gap-2 text-sm">
+                          <span className="mt-2 size-1.5 shrink-0 rounded-full bg-muted-foreground" />
+                          <span>{item}</span>
+                        </div>
+                      ))}
                     </div>
-
-                    {task.checklist
-                      .length > 4 && (
+                    {task.checklist.length > 4 && (
                       <p className="mt-2 text-xs text-muted-foreground">
-                        +
-                        {task.checklist
-                          .length - 4}{" "}
-                        kontrol daha
+                        + {task.checklist.length - 4} kontrol daha
                       </p>
                     )}
                   </div>
@@ -1092,18 +621,12 @@ function TaskList({
               <Separator />
 
               {/* ACTIONS */}
-
               <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-                {(task.status ===
-                  "SCHEDULED" ||
-                  task.status ===
-                    "PENDING") && (
+                {(task.status === "SCHEDULED" || task.status === "PENDING") && (
                   <Button
                     type="button"
                     disabled={isLoading}
-                    onClick={() =>
-                      onStart(task.id)
-                    }
+                    onClick={() => onStart(task.id)}
                     className="gap-2"
                   >
                     {isLoading ? (
@@ -1111,46 +634,34 @@ function TaskList({
                     ) : (
                       <Play className="size-4" />
                     )}
-
                     Göreve Başla
                   </Button>
                 )}
 
-                {task.status ===
-                  "IN_PROGRESS" && (
+                {task.status === "IN_PROGRESS" && (
                   <Button
                     type="button"
                     disabled={isLoading}
-                    onClick={() =>
-                      onComplete(
-                        task.id
-                      )
-                    }
-                    className="gap-2 bg-emerald-600 hover:bg-emerald-700"
+                    onClick={() => onComplete(task.id)}
+                    className="gap-2 bg-emerald-600 text-white hover:bg-emerald-700"
                   >
                     {isLoading ? (
                       <Loader2 className="size-4 animate-spin" />
                     ) : (
                       <CheckCircle2 className="size-4" />
                     )}
-
                     Görevi Tamamla
                   </Button>
                 )}
 
-                {task.status !==
-                  "DONE" &&
-                  task.status !==
-                    "MISSED" &&
-                  task.status !==
-                    "FLAGGED" && (
+                {task.status !== "DONE" &&
+                  task.status !== "MISSED" &&
+                  task.status !== "FLAGGED" && (
                     <Button
                       type="button"
                       variant="outline"
                       disabled={isLoading}
-                      onClick={() =>
-                        onFlag(task.id)
-                      }
+                      onClick={() => onFlag(task.id)}
                       className="gap-2"
                     >
                       {isLoading ? (
@@ -1158,7 +669,6 @@ function TaskList({
                       ) : (
                         <Flag className="size-4" />
                       )}
-
                       Kontrol Gerekiyor
                     </Button>
                   )}
