@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { ExportProcessor } from './modules/reporting/export.processor';
 import { RetentionService } from './modules/retention/retention.service';
 import { AuthModule } from './auth/auth.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -19,6 +20,9 @@ import { QrModule } from './qr/qr.module';
         port: Number(process.env.REDIS_PORT) || 6379,
       },
     }),
+    BullModule.registerQueue({
+      name: 'export-queue',
+    }),
     AuthModule,
     PrismaModule,
     RedisModule,
@@ -28,6 +32,6 @@ import { QrModule } from './qr/qr.module';
     ScheduleModule.forRoot(),
   ],
   controllers: [AppController],
-  providers: [AppService, RetentionService],
+  providers: [AppService, RetentionService, ExportProcessor],
 })
 export class AppModule {}
