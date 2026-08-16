@@ -34,6 +34,7 @@
     "bullmq": "^6.1.2",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
+    "cron-parser": "^5.10.0",
     "exceljs": "^4.4.0",
     "ioredis": "^6.0.0",
     "passport": "^0.7.0",
@@ -91,5 +92,9 @@
     ],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node"
+  },
+  "allowScripts": {
+    "@prisma/engines@7.9.1": true,
+    "prisma@7.9.1": true
   }
 }
