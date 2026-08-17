@@ -9,6 +9,7 @@ const ROLE_ROUTES: Record<string, string[]> = {
   '/admin': ['ADMIN', 'admin'],
   '/settings': ['ADMIN', 'admin'],
   '/reports': ['ADMIN', 'MANAGER', 'admin', 'manager'],
+  '/dashboard/organizations': ['ADMIN', 'admin'], // ADMIN kısıtlaması
   '/dashboard': ['ADMIN', 'MANAGER', 'WORKER', 'admin', 'manager', 'worker'],
 };
 
@@ -17,9 +18,6 @@ const ROLE_ROUTES: Record<string, string[]> = {
  */
 const PUBLIC_ROUTES = ['/login', '/register', '/forgot-password'];
 
-/**
- * Next.js Middleware for authentication and role-based access control (RBAC).
- */
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -32,8 +30,9 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Extract token from HTTP cookies or Authorization header
+  // Extract token from cookies (checking both access_token and token) or Authorization header
   const token =
+    request.cookies.get('access_token')?.value ||
     request.cookies.get('token')?.value ||
     request.headers.get('Authorization')?.replace('Bearer ', '');
 
@@ -65,15 +64,15 @@ export async function proxy(request: NextRequest) {
       userRole = (payload.role as string) || fallbackRole || 'WORKER';
     }
 
-    const matchedRoute = Object.keys(ROLE_ROUTES).find((route) =>
-      pathname.startsWith(route)
-    );
+    // Uzun rotaları önce eşleştirebilmek için sıralı arama (/dashboard/organizations, /dashboard'dan önce bakılmalı)
+    const sortedRoutes = Object.keys(ROLE_ROUTES).sort((a, b) => b.length - a.length);
+    const matchedRoute = sortedRoutes.find((route) => pathname.startsWith(route));
 
     if (matchedRoute) {
       const allowedRoles = ROLE_ROUTES[matchedRoute];
 
       if (!userRole || !allowedRoles.includes(userRole)) {
-        // Redirect unauthorized user to /unauthorized
+        // Unauthorized user access -> Redirect to /dashboard or /unauthorized
         return NextResponse.redirect(new URL('/unauthorized', request.url));
       }
     }
@@ -85,10 +84,11 @@ export async function proxy(request: NextRequest) {
 
     return response;
   } catch (error) {
-    // Expired or invalid token: clear cookies and redirect to login
+    // Expired or invalid token: clear cookies and redirect to login (Automatic Logout requirement)
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('callbackUrl', pathname);
     const response = NextResponse.redirect(loginUrl);
+    response.cookies.delete('access_token');
     response.cookies.delete('token');
     response.cookies.delete('role');
     return response;
@@ -96,7 +96,7 @@ export async function proxy(request: NextRequest) {
 }
 
 /**
- * Configure matching paths for middleware execution.
+ * Configure matching paths for execution.
  */
 export const config = {
   matcher: [
