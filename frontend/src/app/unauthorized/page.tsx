@@ -21,9 +21,9 @@ export default function UnauthorizedPage() {
             Farklı bir hesapla giriş yapmak veya panelinize dönmek için aşağıdaki bağlantıyı kullanabilirsiniz.
           </p>
           <div className="flex justify-center gap-4">
-            <Button asChild variant="outline">
-              <Link href="/dashboard">Dashboard'a Dön</Link>
-            </Button>
+            <Link href="/dashboard">
+              <Button variant="outline">Dashboard'a Dön</Button>
+            </Link>
           </div>
         </CardContent>
       </Card>
