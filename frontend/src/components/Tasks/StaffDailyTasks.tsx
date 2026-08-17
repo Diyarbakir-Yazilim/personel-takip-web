@@ -5,6 +5,7 @@ import {
   AlertCircle,
   CheckCircle2,
   Clock3,
+  CloudOff,
   Flag,
   Loader2,
   MapPin,
@@ -30,6 +31,15 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { getStoredToken } from "@/lib/auth";
+import { performTaskAction } from "@/services/apiClient";
+import {
+  countPendingScans,
+  getPendingScans,
+  QUEUE_CHANGED_EVENT,
+  QUEUE_FLUSHED_EVENT,
+  type PendingScan,
+} from "@/services/db";
 import QRScanner from "../Qr/QRScanner";
 
 type TaskStatus =
@@ -50,6 +60,8 @@ type DailyTask = {
   completedAt: string | null;
   checklist: string[];
   checklistCount: number;
+  /** Local-only flag: the shown status is optimistic, waiting for sync. */
+  pendingSync?: boolean;
 };
 
 type QRAction = "start" | "complete";
@@ -63,18 +75,6 @@ const STATUS_CONFIG: Record<TaskStatus, { label: string; className: string }> = 
   FLAGGED: { label: "Kontrol Gerekli", className: "border-orange-200 bg-orange-50 text-orange-800" },
 };
 
-function getStoredToken(): string | null {
-  if (typeof window === "undefined") return null;
-
-  const localToken =
-    window.localStorage.getItem("access_token") || window.localStorage.getItem("token");
-
-  if (localToken) return localToken;
-
-  const match = document.cookie.match(/(?:^|; )token=([^;]*)/);
-  return match ? decodeURIComponent(match[1]) : null;
-}
-
 function formatTime(value: string | null): string {
   if (!value) return "";
   try {
@@ -87,12 +87,53 @@ function formatTime(value: string | null): string {
   }
 }
 
+/**
+ * Overlays queued-but-unsynced actions onto the task list fetched from the
+ * server, so a page reload while offline still shows the optimistic state.
+ */
+function applyPendingOverlay(list: DailyTask[], queue: PendingScan[]): DailyTask[] {
+  if (queue.length === 0) return list;
+
+  const byTask = new Map<string, PendingScan[]>();
+  for (const item of queue) {
+    const items = byTask.get(item.taskId) ?? [];
+    items.push(item);
+    byTask.set(item.taskId, items);
+  }
+
+  return list.map((task) => {
+    const items = byTask.get(task.id);
+    if (!items || items.length === 0) return task;
+
+    let next: DailyTask = { ...task, pendingSync: true };
+    for (const item of items) {
+      if (item.action === "start") {
+        next = {
+          ...next,
+          status: "IN_PROGRESS",
+          startedAt: next.startedAt ?? item.clientScannedAt,
+        };
+      } else if (item.action === "complete") {
+        next = {
+          ...next,
+          status: "DONE",
+          completedAt: next.completedAt ?? item.clientScannedAt,
+        };
+      } else if (item.action === "flag") {
+        next = { ...next, status: "FLAGGED" };
+      }
+    }
+    return next;
+  });
+}
+
 export default function StaffDailyTasks() {
   const [tasks, setTasks] = useState<DailyTask[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>("");
   const [actionError, setActionError] = useState<string>("");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [pendingCount, setPendingCount] = useState<number>(0);
 
   const [dateLabel, setDateLabel] = useState<string>("");
   const [qrOpen, setQrOpen] = useState<boolean>(false);
@@ -115,6 +156,14 @@ export default function StaffDailyTasks() {
         month: "long",
       }).format(new Date())
     );
+  }, []);
+
+  const refreshPendingCount = useCallback(async () => {
+    try {
+      setPendingCount(await countPendingScans());
+    } catch {
+      // IndexedDB unavailable (private mode etc.) -> ignore silently.
+    }
   }, []);
 
   const loadTasks = useCallback(async () => {
@@ -146,7 +195,16 @@ export default function StaffDailyTasks() {
         ? data.tasks
         : [];
 
-      setTasks(taskList as DailyTask[]);
+      // Re-apply queued offline actions so a reload never "loses" them.
+      let queue: PendingScan[] = [];
+      try {
+        queue = await getPendingScans();
+      } catch {
+        // IndexedDB unavailable -> show server state as-is.
+      }
+
+      setTasks(applyPendingOverlay(taskList as DailyTask[], queue));
+      setPendingCount(queue.length);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Beklenmeyen bir hata oluştu.");
     } finally {
@@ -158,6 +216,20 @@ export default function StaffDailyTasks() {
     void loadTasks();
   }, [loadTasks]);
 
+  // Keep the pending badge in sync and refetch after a successful flush.
+  useEffect(() => {
+    const handleQueueChanged = () => void refreshPendingCount();
+    const handleQueueFlushed = () => void loadTasks();
+
+    window.addEventListener(QUEUE_CHANGED_EVENT, handleQueueChanged);
+    window.addEventListener(QUEUE_FLUSHED_EVENT, handleQueueFlushed);
+
+    return () => {
+      window.removeEventListener(QUEUE_CHANGED_EVENT, handleQueueChanged);
+      window.removeEventListener(QUEUE_FLUSHED_EVENT, handleQueueFlushed);
+    };
+  }, [loadTasks, refreshPendingCount]);
+
   const openQR = useCallback((taskId: string, action: QRAction) => {
     setActionError("");
     setSelectedTaskId(taskId);
@@ -166,19 +238,32 @@ export default function StaffDailyTasks() {
     isProcessingQr.current = false;
   }, []);
 
+  const applyOptimisticUpdate = useCallback(
+    (taskId: string, action: "start" | "complete" | "flag") => {
+      const nowIso = new Date().toISOString();
+
+      setTasks((prev) =>
+        prev.map((task) => {
+          if (task.id !== taskId) return task;
+
+          if (action === "start") {
+            return { ...task, status: "IN_PROGRESS", startedAt: nowIso, pendingSync: true };
+          }
+          if (action === "complete") {
+            return { ...task, status: "DONE", completedAt: nowIso, pendingSync: true };
+          }
+          return { ...task, status: "FLAGGED", pendingSync: true };
+        })
+      );
+    },
+    []
+  );
+
   const handleQRScan = useCallback(
     async (qrValue: string) => {
       if (!selectedTaskId || !qrAction || isProcessingQr.current) return;
 
       isProcessingQr.current = true;
-
-      const token = getStoredToken();
-      if (!token) {
-        setActionError("Oturum açmanız gerekiyor.");
-        setQrOpen(false);
-        isProcessingQr.current = false;
-        return;
-      }
 
       const taskId = selectedTaskId;
       const action = qrAction;
@@ -188,29 +273,21 @@ export default function StaffDailyTasks() {
       setActionError("");
 
       try {
-        const endpoint = apiBaseUrl
-          ? `${apiBaseUrl}/tasks/${taskId}/${action}`
-          : `/api/tasks/${taskId}/${action}`;
-
-        const response = await fetch(endpoint, {
-          method: "PATCH",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ qrCode: qrValue }),
+        const result = await performTaskAction<DailyTask>(taskId, action, {
+          qrCode: qrValue,
         });
 
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(
-            errorData.message || `İşlem başarısız: ${response.statusText}`
-          );
+        if (result.queued) {
+          // Offline: action stored in IndexedDB -> optimistic UI update.
+          applyOptimisticUpdate(taskId, action);
+          return;
         }
 
-        const responseData = await response.json();
+        const responseData = result.data as
+          | (DailyTask & { data?: DailyTask })
+          | undefined;
         const updatedTask =
-          responseData?.data && !Array.isArray(responseData.data)
+          responseData && "data" in responseData && responseData.data && !Array.isArray(responseData.data)
             ? responseData.data
             : responseData;
 
@@ -230,44 +307,29 @@ export default function StaffDailyTasks() {
         isProcessingQr.current = false;
       }
     },
-    [apiBaseUrl, qrAction, selectedTaskId, loadTasks]
+    [qrAction, selectedTaskId, loadTasks, applyOptimisticUpdate]
   );
 
   const handleFlag = useCallback(
     async (taskId: string) => {
-      const token = getStoredToken();
-      if (!token) {
-        setActionError("Oturum açmanız gerekiyor.");
-        return;
-      }
-
       setActionLoading(taskId);
       setActionError("");
 
       try {
-        const endpoint = apiBaseUrl
-          ? `${apiBaseUrl}/tasks/${taskId}/flag`
-          : `/api/tasks/${taskId}/flag`;
-
-        const response = await fetch(endpoint, {
-          method: "PATCH",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ reason: "Manuel olarak işaretlendi" }),
+        const result = await performTaskAction<DailyTask>(taskId, "flag", {
+          reason: "Manuel olarak işaretlendi",
         });
 
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(
-            errorData.message || `İşlem başarısız: ${response.statusText}`
-          );
+        if (result.queued) {
+          applyOptimisticUpdate(taskId, "flag");
+          return;
         }
 
-        const responseData = await response.json();
+        const responseData = result.data as
+          | (DailyTask & { data?: DailyTask })
+          | undefined;
         const updatedTask =
-          responseData?.data && !Array.isArray(responseData.data)
+          responseData && "data" in responseData && responseData.data && !Array.isArray(responseData.data)
             ? responseData.data
             : responseData;
 
@@ -284,7 +346,7 @@ export default function StaffDailyTasks() {
         setActionLoading(null);
       }
     },
-    [apiBaseUrl, loadTasks]
+    [loadTasks, applyOptimisticUpdate]
   );
 
   const stats = useMemo(() => {
@@ -340,6 +402,18 @@ export default function StaffDailyTasks() {
           Yenile
         </Button>
       </div>
+
+      {/* OFFLINE QUEUE INFO */}
+      {pendingCount > 0 && (
+        <Alert className="border-amber-200 bg-amber-50 text-amber-900">
+          <CloudOff className="size-4" />
+          <AlertTitle>Çevrimdışı işlemler bekliyor</AlertTitle>
+          <AlertDescription>
+            {pendingCount} işlem cihazında kayıtlı. Bağlantı sağlandığında otomatik olarak
+            senkronize edilecek.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* ERRORS */}
       {error && (
@@ -568,9 +642,20 @@ function TaskList({
                   </div>
                 </div>
 
-                <Badge variant="outline" className={cn("w-fit shrink-0", config.className)}>
-                  {config.label}
-                </Badge>
+                <div className="flex shrink-0 flex-wrap items-center gap-2">
+                  {task.pendingSync && (
+                    <Badge
+                      variant="outline"
+                      className="w-fit gap-1 border-amber-200 bg-amber-50 text-amber-800"
+                    >
+                      <CloudOff className="size-3" />
+                      Senkronizasyon bekliyor
+                    </Badge>
+                  )}
+                  <Badge variant="outline" className={cn("w-fit", config.className)}>
+                    {config.label}
+                  </Badge>
+                </div>
               </div>
             </CardHeader>
 
