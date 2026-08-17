@@ -1,14 +1,27 @@
-import React from 'react';
+import dynamic from 'next/dynamic';
+import { LayoutDashboard } from 'lucide-react';
 
-export default function ReportDashboard() {
+const FloorPlan = dynamic(
+  () => import('@/components/FloorPlan').then((mod) => mod.FloorPlan),
+  { ssr: false }
+);
+
+export default function DashboardPage() {
   return (
-    <div className="p-8">
-      <h1 className="text-2xl font-bold">Daily Zone Summary Reports</h1>
-      <p>This dashboard is connected to the mv_daily_zone_summary materialized view.</p>
-      {/* Filtering components will go here */}
-      <div className="mt-4 border p-4">
-        <label>Filter by Date: <input type="date" className="border" /></label>
+    <div className="space-y-6">
+      <div className="flex items-center gap-3">
+        <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+          <LayoutDashboard className="size-5" />
+        </div>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-sm text-muted-foreground">
+            Canlı zemin planı ve bölge durumları
+          </p>
+        </div>
       </div>
+
+      <FloorPlan />
     </div>
   );
 }
