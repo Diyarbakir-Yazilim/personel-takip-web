@@ -21,7 +21,7 @@ const navItems = [
   },
   {
     label: 'Görevlerim',
-    href: '/',
+    href: '/dashboard/tasks',
     icon: ClipboardList,
   },
   {

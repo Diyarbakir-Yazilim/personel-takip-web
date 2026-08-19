@@ -63,17 +63,7 @@ const STATUS_CONFIG: Record<TaskStatus, { label: string; className: string }> = 
   FLAGGED: { label: "Kontrol Gerekli", className: "border-orange-200 bg-orange-50 text-orange-800" },
 };
 
-function getStoredToken(): string | null {
-  if (typeof window === "undefined") return null;
-
-  const localToken =
-    window.localStorage.getItem("access_token") || window.localStorage.getItem("token");
-
-  if (localToken) return localToken;
-
-  const match = document.cookie.match(/(?:^|; )token=([^;]*)/);
-  return match ? decodeURIComponent(match[1]) : null;
-}
+import { apiRequest } from "@/services/apiClient";
 
 function formatTime(value: string | null): string {
   if (!value) return "";
@@ -121,23 +111,13 @@ export default function StaffDailyTasks() {
     setIsLoading(true);
     setError("");
 
-    const token = getStoredToken();
-    if (!token) {
-      setTasks([]);
-      setError("Görevleri görmek için oturum açmanız gerekiyor.");
-      setIsLoading(false);
-      return;
-    }
-
     try {
-      const endpoint = apiBaseUrl ? `${apiBaseUrl}/tasks/my-day` : "/api/tasks/my-day";
-      const response = await fetch(endpoint, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const endpoint = "/tasks/my-day";
+      const response = await apiRequest(endpoint);
 
-      if (!response.ok) throw new Error("Görev listesi alınamadı.");
+      if (!response.success) throw new Error("Görev listesi alınamadı.");
 
-      const data = await response.json();
+      const data = response.data as Record<string, unknown>;
       const taskList = Array.isArray(data)
         ? data
         : Array.isArray(data?.data)
@@ -152,7 +132,7 @@ export default function StaffDailyTasks() {
     } finally {
       setIsLoading(false);
     }
-  }, [apiBaseUrl]);
+  }, []);
 
   useEffect(() => {
     void loadTasks();
@@ -171,15 +151,6 @@ export default function StaffDailyTasks() {
       if (!selectedTaskId || !qrAction || isProcessingQr.current) return;
 
       isProcessingQr.current = true;
-
-      const token = getStoredToken();
-      if (!token) {
-        setActionError("Oturum açmanız gerekiyor.");
-        setQrOpen(false);
-        isProcessingQr.current = false;
-        return;
-      }
-
       const taskId = selectedTaskId;
       const action = qrAction;
 
@@ -188,33 +159,23 @@ export default function StaffDailyTasks() {
       setActionError("");
 
       try {
-        const endpoint = apiBaseUrl
-          ? `${apiBaseUrl}/tasks/${taskId}/${action}`
-          : `/api/tasks/${taskId}/${action}`;
-
-        const response = await fetch(endpoint, {
+        const endpoint = `/tasks/${taskId}/${action}`;
+        const response = await apiRequest(endpoint, {
           method: "PATCH",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ qrCode: qrValue }),
+          body: { qrCode: qrValue },
         });
 
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(
-            errorData.message || `İşlem başarısız: ${response.statusText}`
-          );
+        if (!response.success) {
+          throw new Error("İşlem başarısız.");
         }
 
-        const responseData = await response.json();
+        const responseData = response.data as Record<string, unknown>;
         const updatedTask =
           responseData?.data && !Array.isArray(responseData.data)
             ? responseData.data
             : responseData;
 
-        if (updatedTask?.id) {
+        if (updatedTask && typeof updatedTask === 'object' && 'id' in updatedTask) {
           setTasks((prev) =>
             prev.map((task) => (task.id === taskId ? (updatedTask as DailyTask) : task))
           );
@@ -230,48 +191,32 @@ export default function StaffDailyTasks() {
         isProcessingQr.current = false;
       }
     },
-    [apiBaseUrl, qrAction, selectedTaskId, loadTasks]
+    [qrAction, selectedTaskId, loadTasks]
   );
 
   const handleFlag = useCallback(
     async (taskId: string) => {
-      const token = getStoredToken();
-      if (!token) {
-        setActionError("Oturum açmanız gerekiyor.");
-        return;
-      }
-
       setActionLoading(taskId);
       setActionError("");
 
       try {
-        const endpoint = apiBaseUrl
-          ? `${apiBaseUrl}/tasks/${taskId}/flag`
-          : `/api/tasks/${taskId}/flag`;
-
-        const response = await fetch(endpoint, {
+        const endpoint = `/tasks/${taskId}/flag`;
+        const response = await apiRequest(endpoint, {
           method: "PATCH",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ reason: "Manuel olarak işaretlendi" }),
+          body: { reason: "Manuel olarak işaretlendi" },
         });
 
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(
-            errorData.message || `İşlem başarısız: ${response.statusText}`
-          );
+        if (!response.success) {
+          throw new Error("İşlem başarısız.");
         }
 
-        const responseData = await response.json();
+        const responseData = response.data as Record<string, unknown>;
         const updatedTask =
           responseData?.data && !Array.isArray(responseData.data)
             ? responseData.data
             : responseData;
 
-        if (updatedTask?.id) {
+        if (updatedTask && typeof updatedTask === 'object' && 'id' in updatedTask) {
           setTasks((prev) =>
             prev.map((task) => (task.id === taskId ? (updatedTask as DailyTask) : task))
           );
@@ -284,7 +229,7 @@ export default function StaffDailyTasks() {
         setActionLoading(null);
       }
     },
-    [apiBaseUrl, loadTasks]
+    [loadTasks]
   );
 
   const stats = useMemo(() => {

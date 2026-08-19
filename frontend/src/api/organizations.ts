@@ -1,64 +1,4 @@
-/**
- * Helper to get the JWT token from cookies (or localStorage if used).
- */
-export function getStoredToken(): string | null {
-  if (typeof window === "undefined") return null;
-  // Try to get token from cookies
-  const match = document.cookie.match(new RegExp('(^| )token=([^;]+)'));
-  if (match) return match[2];
-  // Fallback to localStorage
-  return localStorage.getItem("token");
-}
-
-function getApiBaseUrl(): string {
-  // Use Next.js proxy route if you have one, or direct backend URL
-  // We'll use the proxy route to avoid CORS, or direct depending on setup.
-  // The tasks use /api/tasks (proxy) or process.env.NEXT_PUBLIC_API_URL
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL || "";
-  return baseUrl ? baseUrl.replace(/\/$/, "") : "/api";
-}
-
-async function fetchWithAuth(endpoint: string, options: RequestInit = {}) {
-  const token = getStoredToken();
-  const headers = new Headers(options.headers || {});
-  
-  if (token) {
-    headers.set("Authorization", `Bearer ${token}`);
-  }
-  
-  if (!headers.has("Content-Type") && options.body && typeof options.body === "string") {
-    headers.set("Content-Type", "application/json");
-  }
-
-  // Determine if we are hitting /api proxy or direct backend
-  const baseUrl = getApiBaseUrl();
-  const url = baseUrl.includes("http") ? `${baseUrl}${endpoint}` : `${baseUrl}${endpoint}`;
-
-  const response = await fetch(url, {
-    ...options,
-    headers,
-  });
-
-  if (!response.ok) {
-    let errorMessage = `API Error: ${response.status} ${response.statusText}`;
-    try {
-      const errorData = await response.json();
-      if (errorData.message) {
-        errorMessage = Array.isArray(errorData.message) ? errorData.message.join(", ") : errorData.message;
-      }
-    } catch (e) {
-      // Ignore
-    }
-    throw new Error(errorMessage);
-  }
-
-  // Return empty object for 204 or empty response
-  if (response.status === 204 || response.headers.get("content-length") === "0") {
-    return {};
-  }
-
-  return response.json();
-}
+import { apiRequest } from '@/services/apiClient';
 
 // -----------------------------------------------------
 // BUILDINGS
@@ -72,27 +12,27 @@ export type Building = {
 };
 
 export async function getBuildings(): Promise<Building[]> {
-  return fetchWithAuth("/organizations/buildings");
+  return apiRequest<Building[]>("/organizations/buildings").then(res => res.data || []);
 }
 
 export async function createBuilding(data: { name: string }): Promise<Building> {
-  return fetchWithAuth("/organizations/buildings", {
+  return apiRequest<Building>("/organizations/buildings", {
     method: "POST",
-    body: JSON.stringify(data),
-  });
+    body: data,
+  }).then(res => res.data as Building);
 }
 
 export async function updateBuilding(id: string, data: { name: string }): Promise<Building> {
-  return fetchWithAuth(`/organizations/buildings/${id}`, {
+  return apiRequest<Building>(`/organizations/buildings/${id}`, {
     method: "PATCH",
-    body: JSON.stringify(data),
-  });
+    body: data,
+  }).then(res => res.data as Building);
 }
 
 export async function deleteBuilding(id: string): Promise<Building> {
-  return fetchWithAuth(`/organizations/buildings/${id}`, {
+  return apiRequest<Building>(`/organizations/buildings/${id}`, {
     method: "DELETE",
-  });
+  }).then(res => res.data as Building);
 }
 
 // -----------------------------------------------------
@@ -111,27 +51,27 @@ export type Floor = {
 
 export async function getFloors(buildingId?: string): Promise<Floor[]> {
   const query = buildingId ? `?buildingId=${buildingId}` : "";
-  return fetchWithAuth(`/organizations/floors${query}`);
+  return apiRequest<Floor[]>(`/organizations/floors${query}`).then(res => res.data || []);
 }
 
 export async function createFloor(data: { buildingId?: string; name: string; level: number }): Promise<Floor> {
-  return fetchWithAuth("/organizations/floors", {
+  return apiRequest<Floor>("/organizations/floors", {
     method: "POST",
-    body: JSON.stringify(data),
-  });
+    body: data,
+  }).then(res => res.data as Floor);
 }
 
 export async function updateFloor(id: string, data: Partial<{ buildingId: string; name: string; level: number }>): Promise<Floor> {
-  return fetchWithAuth(`/organizations/floors/${id}`, {
+  return apiRequest<Floor>(`/organizations/floors/${id}`, {
     method: "PATCH",
-    body: JSON.stringify(data),
-  });
+    body: data,
+  }).then(res => res.data as Floor);
 }
 
 export async function deleteFloor(id: string): Promise<Floor> {
-  return fetchWithAuth(`/organizations/floors/${id}`, {
+  return apiRequest<Floor>(`/organizations/floors/${id}`, {
     method: "DELETE",
-  });
+  }).then(res => res.data as Floor);
 }
 
 // -----------------------------------------------------
@@ -152,7 +92,7 @@ export type Zone = {
 
 export async function getZones(floorId?: string): Promise<Zone[]> {
   const query = floorId ? `?floorId=${floorId}` : "";
-  return fetchWithAuth(`/organizations/zones${query}`);
+  return apiRequest<Zone[]>(`/organizations/zones${query}`).then(res => res.data || []);
 }
 
 export async function createZone(data: { 
@@ -162,10 +102,10 @@ export async function createZone(data: {
   minDurationSec?: number; 
   maxDurationSec?: number 
 }): Promise<Zone> {
-  return fetchWithAuth("/organizations/zones", {
+  return apiRequest<Zone>("/organizations/zones", {
     method: "POST",
-    body: JSON.stringify(data),
-  });
+    body: data,
+  }).then(res => res.data as Zone);
 }
 
 export async function updateZone(id: string, data: Partial<{ 
@@ -175,14 +115,14 @@ export async function updateZone(id: string, data: Partial<{
   minDurationSec: number; 
   maxDurationSec: number 
 }>): Promise<Zone> {
-  return fetchWithAuth(`/organizations/zones/${id}`, {
+  return apiRequest<Zone>(`/organizations/zones/${id}`, {
     method: "PATCH",
-    body: JSON.stringify(data),
-  });
+    body: data,
+  }).then(res => res.data as Zone);
 }
 
 export async function deleteZone(id: string): Promise<Zone> {
-  return fetchWithAuth(`/organizations/zones/${id}`, {
+  return apiRequest<Zone>(`/organizations/zones/${id}`, {
     method: "DELETE",
-  });
+  }).then(res => res.data as Zone);
 }
