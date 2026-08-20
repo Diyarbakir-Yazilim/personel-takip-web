@@ -68,7 +68,8 @@ export default function ProfilePage() {
   };
 
   // Helper to get initials for avatar
-  const getInitials = (name: string) => {
+  const getInitials = (name?: string) => {
+    if (!name) return '';
     return name
       .split(' ')
       .map((n) => n[0])
