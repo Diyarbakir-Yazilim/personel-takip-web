@@ -41,6 +41,7 @@ const backendRes = await fetch(`${backendUrl}/auth/login`, {
     const response = NextResponse.json({
       success: true,
       user: data.user,
+      access_token: token,
     });
 
     // Store token securely in an HttpOnly cookie

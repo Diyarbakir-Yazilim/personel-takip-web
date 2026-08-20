@@ -3,11 +3,11 @@ import { NextRequest, NextResponse } from 'next/server';
 async function handleProxy(request: NextRequest) {
   // Extract target route path (e.g. /api/proxy/auth/profile -> auth/profile)
   const path = request.nextUrl.pathname.replace('/api/proxy/', '');
-  const backendUrl = process.env.BACKEND_API_URL || 'http://localhost:5000/v1';
+  const backendUrl = process.env.BACKEND_API_URL || 'http://127.0.0.1:5000/v1';
 const targetUrl = `${backendUrl}/${path}`;
 
-  // Retrieve access_token from HttpOnly cookie
-  const token = request.cookies.get('access_token')?.value;
+  // Retrieve token from HttpOnly cookie
+  const token = request.cookies.get('token')?.value;
 
   const headers = new Headers(request.headers);
   headers.delete('host');
@@ -32,6 +32,7 @@ const targetUrl = `${backendUrl}/${path}`;
       },
     });
   } catch (error) {
+    console.error('BFF Proxy Error for path:', path, error);
     return NextResponse.json(
       { error: 'BFF Proxy forwarding error' },
       { status: 502 }
@@ -42,4 +43,5 @@ const targetUrl = `${backendUrl}/${path}`;
 export const GET = handleProxy;
 export const POST = handleProxy;
 export const PUT = handleProxy;
+export const PATCH = handleProxy;
 export const DELETE = handleProxy;

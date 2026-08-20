@@ -37,16 +37,8 @@ export interface PendingScan {
 }
 
 const DB_NAME = 'OfflineQueueDB';
-const DB_VERSION = 2;
-const STORE_NAME = 'pending_scans';
-const LEGACY_STORE_NAME = 'outbox';
-
-/** DOM event fired whenever the queue content changes (add/remove). */
-export const QUEUE_CHANGED_EVENT = 'pending-scans-changed';
-/** DOM event fired after a flush cycle that successfully drained records. */
-export const QUEUE_FLUSHED_EVENT = 'pending-scans-flushed';
-
-let dbPromise: Promise<IDBDatabase> | null = null;
+const DB_VERSION = 3;
+const STORE_NAME = 'outbox';
 
 export function openDB(): Promise<IDBDatabase> {
   if (dbPromise) return dbPromise;

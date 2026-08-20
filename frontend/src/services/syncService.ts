@@ -62,6 +62,21 @@ export async function flushQueue(): Promise<void> {
           },
           body: JSON.stringify(item.payload),
         });
+
+        if (response.ok) {
+          if (item.id !== undefined) {
+            await removeFromQueue(item.id);
+            console.log(`[Sync] İstek #${item.id} başarıyla gönderildi ve silindi.`);
+          }
+        } else if (response.status >= 400 && response.status < 500) {
+          console.error(`[Sync] İstek geçersiz veya reddedildi (Status: ${response.status}). Kuyruktan siliniyor.`);
+          if (item.id !== undefined) {
+            await removeFromQueue(item.id);
+          }
+        } else {
+          console.error(`[Sync] Sunucu hatası (Status: ${response.status}). Tekrar denenecek.`);
+          break;
+        }
       } catch (networkError) {
         console.warn('[Sync] Ağ hatası, senkronizasyon durduruldu:', networkError);
         break;
@@ -125,7 +140,7 @@ export async function flushQueue(): Promise<void> {
  * Returns an unsubscribe function for React effect cleanup.
  */
 export function initBackgroundSync(): () => void {
-  if (typeof window === 'undefined') return () => {};
+  if (typeof window === 'undefined') return () => { };
 
   const handleOnline = () => {
     console.log('[Sync] Bağlantı sağlandı, senkronizasyon başlatılıyor...');

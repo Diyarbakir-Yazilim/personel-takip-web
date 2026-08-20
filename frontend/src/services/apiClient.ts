@@ -13,104 +13,91 @@
  *    user instead of being silently queued and replayed forever.
  */
 
-import { addPendingScan, type PendingScanAction } from './db';
-import { getStoredToken } from '@/lib/auth';
-
-const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, '');
-
-export class ApiError extends Error {
-  constructor(
-    message: string,
-    public readonly status: number,
-  ) {
-    super(message);
-    this.name = 'ApiError';
-  }
+interface RequestOptions extends Omit<RequestInit, 'body'> {
+  body?: unknown;
 }
 
-export interface TaskActionResult<T = unknown> {
-  /** true when the action was stored locally instead of reaching the server. */
-  queued: boolean;
-  data?: T;
+export function getStoredToken(): string | null {
+  if (typeof window === "undefined") return null;
+  // Try to get token from cookies
+  const match = document.cookie.match(new RegExp('(^| )token=([^;]+)'));
+  if (match) return match[2];
+  // Fallback to localStorage
+  return localStorage.getItem("token");
 }
 
-export function buildTaskActionUrl(taskId: string, action: PendingScanAction): string {
-  return API_BASE_URL
-    ? `${API_BASE_URL}/tasks/${taskId}/${action}`
-    : `/api/tasks/${taskId}/${action}`;
+export function getApiBaseUrl(): string {
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL || "";
+  return baseUrl ? baseUrl.replace(/\/$/, "") : "/api/proxy";
 }
 
-function generateClientEventId(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
-  // RFC4122-ish fallback for very old WebViews.
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === 'x' ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
-}
-
-async function queueTaskAction(
-  taskId: string,
-  action: PendingScanAction,
-  payload: Record<string, unknown>,
-): Promise<TaskActionResult<never>> {
-  await addPendingScan({
-    clientEventId: generateClientEventId(),
-    taskId,
-    action,
-    url: buildTaskActionUrl(taskId, action),
-    method: 'PATCH',
-    payload,
-    clientScannedAt: new Date().toISOString(),
-  });
-
-  return { queued: true };
-}
-
-export async function performTaskAction<T = unknown>(
-  taskId: string,
-  action: PendingScanAction,
-  payload: Record<string, unknown> = {},
-): Promise<TaskActionResult<T>> {
+export async function apiRequest<T = unknown>(
+  endpoint: string,
+  options: RequestOptions = {}
+): Promise<{ success: boolean; data?: T; queued?: boolean }> {
+  const method = options.method || 'GET';
+  const payload = options.body;
   const token = getStoredToken();
-  if (!token) {
-    throw new ApiError('Oturum açmanız gerekiyor.', 401);
+  const headers = new Headers(options.headers || {});
+
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
   }
 
-  // Case 1: known-offline device -> queue immediately (optimistic path).
-  if (typeof navigator !== 'undefined' && !navigator.onLine) {
-    return queueTaskAction(taskId, action, payload);
+  if (!headers.has("Content-Type") && payload && typeof payload !== "string") {
+    headers.set("Content-Type", "application/json");
+  }
+
+  const baseUrl = getApiBaseUrl();
+  const url = endpoint.startsWith('http') ? endpoint : `${baseUrl}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
+
+  // 1. Cihaz halihazırda offline ise doğrudan IndexedDB kuyruğuna yaz (Sadece mutasyonlar için)
+  if (!navigator.onLine && method !== 'GET') {
+    console.log('[API] Cihaz çevrimdışı, istek kuyruğa ekleniyor:', url);
+    await addToQueue({ url, method: method as 'POST' | 'PUT' | 'DELETE' | 'PATCH', payload: payload as Record<string, unknown> });
+    return { success: true, queued: true };
   }
 
   try {
-    const response = await fetch(buildTaskActionUrl(taskId, action), {
-      method: 'PATCH',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { body: _body, ...restOptions } = options;
+    const fetchOptions: RequestInit = {
+      ...restOptions,
+      method,
+      headers,
+    };
+    if (payload) {
+      fetchOptions.body = typeof payload === "string" ? payload : JSON.stringify(payload);
+    }
+
+    const response = await fetch(url, fetchOptions);
 
     // Case 4: the server actively rejected the request -> surface the error.
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}) as { message?: string });
-      throw new ApiError(
-        errorData.message || `İşlem başarısız: ${response.statusText}`,
-        response.status,
-      );
+      let errorMessage = `HTTP Hata kodu: ${response.status}`;
+      try {
+        const errorData = await response.json();
+        if (errorData.message) {
+          errorMessage = Array.isArray(errorData.message) ? errorData.message.join(", ") : errorData.message;
+        }
+      } catch (e) { }
+      throw new Error(errorMessage);
+    }
+
+    // Handle 204 No Content
+    if (response.status === 204 || response.headers.get("content-length") === "0") {
+      return { success: true };
     }
 
     const data = (await response.json()) as T;
     return { queued: false, data };
   } catch (error) {
-    if (error instanceof ApiError) throw error;
-
-    // Case 3: fetch itself rejected -> connection dropped mid-flight.
-    console.warn('[API] Ağ hatası, istek çevrimdışı kuyruğa alındı:', error);
-    return queueTaskAction(taskId, action, payload);
+    // 3. Ağ aniden koptuysa isteği yakala ve yine kuyruğa yaz (Sadece mutasyonlar için)
+    if (method !== 'GET') {
+      console.warn('[API] Ağ hatası alındı, istek kuyruğa yedekleniyor:', error);
+      await addToQueue({ url, method: method as 'POST' | 'PUT' | 'DELETE' | 'PATCH', payload: payload as Record<string, unknown> });
+      return { success: true, queued: true };
+    }
+    throw error;
   }
 }

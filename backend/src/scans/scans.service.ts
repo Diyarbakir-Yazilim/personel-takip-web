@@ -75,4 +75,46 @@ export class ScansService {
       skippedClientEventIds,
     };
   }
+
+  async findAll(skip: number = 0, take: number = 50) {
+    const [scans, total] = await Promise.all([
+      this.prisma.scanEvent.findMany({
+        skip,
+        take,
+        orderBy: { clientScannedAt: 'desc' },
+        include: {
+          user: {
+            select: {
+              id: true,
+              fullName: true,
+              email: true,
+              role: true,
+            },
+          },
+          task: {
+            include: {
+              zone: {
+                select: {
+                  name: true,
+                  code: true,
+                }
+              }
+            }
+          },
+          location: true,
+          deviceIntegrity: true,
+        },
+      }),
+      this.prisma.scanEvent.count(),
+    ]);
+
+    return {
+      data: scans,
+      meta: {
+        total,
+        skip,
+        take,
+      },
+    };
+  }
 }

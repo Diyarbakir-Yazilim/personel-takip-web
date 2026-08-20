@@ -11,6 +11,8 @@ import {
   ParseUUIDPipe,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
 import { TasksService } from './tasks.service';
 import { UpdateTaskStatusDto } from './dto/update-task-status.dto';
 import { TaskStatus } from '@prisma/client';
@@ -20,8 +22,15 @@ import { TaskStatus } from '@prisma/client';
 export class TasksController {
   constructor(private readonly tasksService: TasksService) {}
 
+  @Get('dashboard-stats')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN', 'SUPERVISOR')
+  getDashboardStats() {
+    return this.tasksService.getDashboardStats();
+  }
+
   @Get('my-day')
-  getMyDay(@Request() req) {
+  getMyDay(@Request() req: any) {
     return this.tasksService.findMyDayTasks(req.user.userId);
   }
 
@@ -31,17 +40,17 @@ export class TasksController {
   }
 
   @Patch(':id/start')
-  startTask(@Param('id') id: string, @Request() req) {
-    return this.tasksService.startTask(id, req.user.userId);
+  startTask(@Param('id') id: string, @Request() req: any, @Body() body?: { qrCode?: string }) {
+    return this.tasksService.startTask(id, req.user.userId, body?.qrCode);
   }
 
   @Patch(':id/complete')
   completeTask(
     @Param('id') id: string,
     @Request() req: any,
-    @Body() body?: { notes?: string; checklistItems?: number[] }
+    @Body() body?: { notes?: string; checklistItems?: number[], qrCode?: string }
   ) {
-    return this.tasksService.completeTask(id, req.user.userId, body);
+    return this.tasksService.completeTask(id, req.user.userId, body, body?.qrCode);
   }
 
   @Patch(':id/flag')
