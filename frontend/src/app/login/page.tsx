@@ -38,10 +38,10 @@ function LoginContent() {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          email: email.trim(), 
-          password: password.trim(), 
-          deviceId 
+        body: JSON.stringify({
+          email: email.trim(),
+          password: password.trim(),
+          deviceId
         }),
       });
 
@@ -155,7 +155,7 @@ function LoginContent() {
 
 export default function LoginPage() {
   const [mounted, setMounted] = useState(false);
-  
+
   useEffect(() => {
     setMounted(true);
   }, []);

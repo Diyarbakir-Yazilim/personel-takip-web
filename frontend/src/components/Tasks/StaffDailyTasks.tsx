@@ -5,6 +5,7 @@ import {
   AlertCircle,
   CheckCircle2,
   Clock3,
+  CloudOff,
   Flag,
   Loader2,
   MapPin,
@@ -30,6 +31,15 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { getStoredToken } from "@/lib/auth";
+import { performTaskAction } from "@/services/apiClient";
+import {
+  countPendingScans,
+  getPendingScans,
+  QUEUE_CHANGED_EVENT,
+  QUEUE_FLUSHED_EVENT,
+  type PendingScan,
+} from "@/services/db";
 import QRScanner from "../Qr/QRScanner";
 
 type TaskStatus =
@@ -50,6 +60,8 @@ type DailyTask = {
   completedAt: string | null;
   checklist: string[];
   checklistCount: number;
+  /** Local-only flag: the shown status is optimistic, waiting for sync. */
+  pendingSync?: boolean;
 };
 
 type QRAction = "start" | "complete";
@@ -77,19 +89,60 @@ function formatTime(value: string | null): string {
   }
 }
 
+/**
+ * Overlays queued-but-unsynced actions onto the task list fetched from the
+ * server, so a page reload while offline still shows the optimistic state.
+ */
+function applyPendingOverlay(list: DailyTask[], queue: PendingScan[]): DailyTask[] {
+  if (queue.length === 0) return list;
+
+  const byTask = new Map<string, PendingScan[]>();
+  for (const item of queue) {
+    const items = byTask.get(item.taskId) ?? [];
+    items.push(item);
+    byTask.set(item.taskId, items);
+  }
+
+  return list.map((task) => {
+    const items = byTask.get(task.id);
+    if (!items || items.length === 0) return task;
+
+    let next: DailyTask = { ...task, pendingSync: true };
+    for (const item of items) {
+      if (item.action === "start") {
+        next = {
+          ...next,
+          status: "IN_PROGRESS",
+          startedAt: next.startedAt ?? item.clientScannedAt,
+        };
+      } else if (item.action === "complete") {
+        next = {
+          ...next,
+          status: "DONE",
+          completedAt: next.completedAt ?? item.clientScannedAt,
+        };
+      } else if (item.action === "flag") {
+        next = { ...next, status: "FLAGGED" };
+      }
+    }
+    return next;
+  });
+}
+
 export default function StaffDailyTasks() {
   const [tasks, setTasks] = useState<DailyTask[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>("");
   const [actionError, setActionError] = useState<string>("");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [pendingCount, setPendingCount] = useState<number>(0);
 
   const [dateLabel, setDateLabel] = useState<string>("");
   const [qrOpen, setQrOpen] = useState<boolean>(false);
   const [qrAction, setQrAction] = useState<QRAction | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>("all");
-  
+
   const [successModal, setSuccessModal] = useState<{ isOpen: boolean; message: string }>({
     isOpen: false,
     message: "",
@@ -112,6 +165,14 @@ export default function StaffDailyTasks() {
     );
   }, []);
 
+  const refreshPendingCount = useCallback(async () => {
+    try {
+      setPendingCount(await countPendingScans());
+    } catch {
+      // IndexedDB unavailable (private mode etc.) -> ignore silently.
+    }
+  }, []);
+
   const loadTasks = useCallback(async () => {
     setIsLoading(true);
     setError("");
@@ -126,12 +187,21 @@ export default function StaffDailyTasks() {
       const taskList = Array.isArray(data)
         ? data
         : Array.isArray(data?.data)
-        ? data.data
-        : Array.isArray(data?.tasks)
-        ? data.tasks
-        : [];
+          ? data.data
+          : Array.isArray(data?.tasks)
+            ? data.tasks
+            : [];
 
-      setTasks(taskList as DailyTask[]);
+      // Re-apply queued offline actions so a reload never "loses" them.
+      let queue: PendingScan[] = [];
+      try {
+        queue = await getPendingScans();
+      } catch {
+        // IndexedDB unavailable -> show server state as-is.
+      }
+
+      setTasks(applyPendingOverlay(taskList as DailyTask[], queue));
+      setPendingCount(queue.length);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Beklenmeyen bir hata oluştu.");
     } finally {
@@ -143,6 +213,20 @@ export default function StaffDailyTasks() {
     void loadTasks();
   }, [loadTasks]);
 
+  // Keep the pending badge in sync and refetch after a successful flush.
+  useEffect(() => {
+    const handleQueueChanged = () => void refreshPendingCount();
+    const handleQueueFlushed = () => void loadTasks();
+
+    window.addEventListener(QUEUE_CHANGED_EVENT, handleQueueChanged);
+    window.addEventListener(QUEUE_FLUSHED_EVENT, handleQueueFlushed);
+
+    return () => {
+      window.removeEventListener(QUEUE_CHANGED_EVENT, handleQueueChanged);
+      window.removeEventListener(QUEUE_FLUSHED_EVENT, handleQueueFlushed);
+    };
+  }, [loadTasks, refreshPendingCount]);
+
   const openQR = useCallback((taskId: string, action: QRAction) => {
     setActionError("");
     setSelectedTaskId(taskId);
@@ -150,6 +234,27 @@ export default function StaffDailyTasks() {
     setQrOpen(true);
     isProcessingQr.current = false;
   }, []);
+
+  const applyOptimisticUpdate = useCallback(
+    (taskId: string, action: "start" | "complete" | "flag") => {
+      const nowIso = new Date().toISOString();
+
+      setTasks((prev) =>
+        prev.map((task) => {
+          if (task.id !== taskId) return task;
+
+          if (action === "start") {
+            return { ...task, status: "IN_PROGRESS", startedAt: nowIso, pendingSync: true };
+          }
+          if (action === "complete") {
+            return { ...task, status: "DONE", completedAt: nowIso, pendingSync: true };
+          }
+          return { ...task, status: "FLAGGED", pendingSync: true };
+        })
+      );
+    },
+    []
+  );
 
   const handleQRScan = useCallback(
     async (qrValue: string) => {
@@ -176,7 +281,7 @@ export default function StaffDailyTasks() {
 
         const responseData = response.data as Record<string, unknown>;
         const updatedTask =
-          responseData?.data && !Array.isArray(responseData.data)
+          responseData && "data" in responseData && responseData.data && !Array.isArray(responseData.data)
             ? responseData.data
             : responseData;
 
@@ -192,7 +297,7 @@ export default function StaffDailyTasks() {
           isOpen: true,
           message: action === "start" ? "Görev başarıyla başlatıldı! Kolay gelsin." : "Tebrikler! Görev başarıyla tamamlandı.",
         });
-        
+
         setTimeout(() => {
           setSuccessModal({ isOpen: false, message: "" });
         }, 3000);
@@ -226,7 +331,7 @@ export default function StaffDailyTasks() {
 
         const responseData = response.data as Record<string, unknown>;
         const updatedTask =
-          responseData?.data && !Array.isArray(responseData.data)
+          responseData && "data" in responseData && responseData.data && !Array.isArray(responseData.data)
             ? responseData.data
             : responseData;
 
@@ -299,6 +404,18 @@ export default function StaffDailyTasks() {
           Yenile
         </Button>
       </div>
+
+      {/* OFFLINE QUEUE INFO */}
+      {pendingCount > 0 && (
+        <Alert className="border-amber-200 bg-amber-50 text-amber-900">
+          <CloudOff className="size-4" />
+          <AlertTitle>Çevrimdışı işlemler bekliyor</AlertTitle>
+          <AlertDescription>
+            {pendingCount} işlem cihazında kayıtlı. Bağlantı sağlandığında otomatik olarak
+            senkronize edilecek.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* ERRORS */}
       {error && (
@@ -542,8 +659,8 @@ function TaskList({
         const statusBorder = statusColorMap[task.status] || "border-slate-200";
 
         return (
-          <Card 
-            key={task.id} 
+          <Card
+            key={task.id}
             className={cn(
               "relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-all dark:border-slate-800 dark:bg-slate-900/50",
               "border-l-[4px]",

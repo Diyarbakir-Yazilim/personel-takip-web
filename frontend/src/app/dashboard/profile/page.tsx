@@ -102,7 +102,7 @@ export default function ProfilePage() {
                 {profile?.fullName}
               </h1>
             )}
-            
+
             {isLoading ? (
               <Skeleton className="mx-auto h-5 w-32 mt-2" />
             ) : (
@@ -112,7 +112,7 @@ export default function ProfilePage() {
               </p>
             )}
           </div>
-          
+
           {!isLoading && profile && (
             <Badge variant={roleLabels[profile.role]?.variant ?? 'secondary'} className="px-4 py-1 text-xs uppercase tracking-widest font-semibold mt-4">
               {roleLabels[profile.role]?.label ?? profile.role}
@@ -131,7 +131,7 @@ export default function ProfilePage() {
       {/* Hesap Ayarları */}
       <div className="space-y-4">
         <h3 className="px-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">Hesap Ayarları</h3>
-        
+
         <Card className="shadow-sm">
           <CardContent className="p-2">
             <Button variant="ghost" className="w-full justify-start h-14 px-4 font-normal hover:bg-slate-100 dark:hover:bg-slate-800/50">
@@ -146,9 +146,9 @@ export default function ProfilePage() {
                 <ChevronRight className="size-5 text-muted-foreground" />
               </div>
             </Button>
-            
+
             <Separator className="my-1" />
-            
+
             <Button variant="ghost" className="w-full justify-start h-14 px-4 font-normal hover:bg-slate-100 dark:hover:bg-slate-800/50">
               <div className="flex items-center gap-4 w-full">
                 <div className="flex size-10 items-center justify-center rounded-lg bg-purple-500/10 text-purple-600 dark:text-purple-400">
@@ -168,11 +168,11 @@ export default function ProfilePage() {
       {/* Diğer */}
       <div className="space-y-4 pt-4">
         <h3 className="px-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">Diğer</h3>
-        
+
         <Card className="shadow-sm border-destructive/20 bg-destructive/5">
           <CardContent className="p-2">
-            <Button 
-              variant="ghost" 
+            <Button
+              variant="ghost"
               onClick={handleLogout}
               className="w-full justify-start h-14 px-4 font-normal text-destructive hover:text-destructive hover:bg-destructive/10"
             >

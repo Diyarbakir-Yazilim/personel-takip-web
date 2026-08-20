@@ -44,7 +44,7 @@ const statusColors = {
 export default function DashboardPage() {
   const router = useRouter();
   const [role, setRole] = useState<string | null>(null);
-  
+
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [zones, setZones] = useState<Zone[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -116,7 +116,7 @@ export default function DashboardPage() {
 
       {isLoading ? (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {[1,2,3,4].map(i => <Skeleton key={i} className="h-28 w-full rounded-2xl" />)}
+          {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-28 w-full rounded-2xl" />)}
         </div>
       ) : stats ? (
         <>
@@ -172,10 +172,10 @@ export default function DashboardPage() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            
+
             {/* SOL SÜTUN: İLERLEME VE BÖLGELER */}
             <div className="lg:col-span-2 space-y-6">
-              
+
               {/* PROGRESS */}
               <Card className="rounded-2xl shadow-sm border-slate-200">
                 <CardHeader className="pb-2">
@@ -201,7 +201,7 @@ export default function DashboardPage() {
                   <MapPin className="size-5 text-primary" />
                   <h2 className="text-xl font-semibold tracking-tight">Kayıtlı Bölgeler</h2>
                 </div>
-                
+
                 {zones.length === 0 ? (
                   <Card className="border-dashed shadow-none bg-slate-50 dark:bg-slate-900/50">
                     <CardContent className="flex flex-col items-center justify-center py-10 text-center">
@@ -214,7 +214,7 @@ export default function DashboardPage() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
                     {zones.map((zone) => {
                       // Geçici olarak rastgele statü atıyoruz veya gelecekte backend'den gelecek
-                      const mockStatus = 'FREE'; 
+                      const mockStatus = 'FREE';
                       const c = statusColors[mockStatus];
 
                       return (
@@ -264,8 +264,8 @@ export default function DashboardPage() {
                               {activity.user.fullName}
                             </p>
                             <p className="text-xs text-slate-500 mt-0.5 truncate">
-                              {activity.task?.zone?.name || 'Bilinmeyen Bölge'} 
-                              <span className="mx-1">•</span> 
+                              {activity.task?.zone?.name || 'Bilinmeyen Bölge'}
+                              <span className="mx-1">•</span>
                               {activity.resolvedAction === 'CHECK_IN' ? 'Giriş' : 'Çıkış'}
                             </p>
                           </div>
