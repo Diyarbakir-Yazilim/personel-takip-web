@@ -7,7 +7,7 @@ export interface QueueItem {
 }
 
 const DB_NAME = 'OfflineQueueDB';
-const DB_VERSION = 1;
+const DB_VERSION = 3;
 const STORE_NAME = 'outbox';
 
 export function openDB(): Promise<IDBDatabase> {

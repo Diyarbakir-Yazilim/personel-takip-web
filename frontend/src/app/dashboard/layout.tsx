@@ -1,150 +1,60 @@
 'use client';
 
-import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-import { cn } from '@/lib/utils';
+import React from 'react';
+import { usePathname } from 'next/navigation';
+import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
+import { AppSidebar } from '@/components/AppSidebar';
+import { Separator } from '@/components/ui/separator';
 import {
-  ClipboardList,
-  Building2,
-  LayoutDashboard,
-  LogOut,
-  User,
-  ChevronRight,
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
-
-const navItems = [
-  {
-    label: 'Ana Sayfa',
-    href: '/dashboard',
-    icon: LayoutDashboard,
-  },
-  {
-    label: 'Görevlerim',
-    href: '/dashboard/tasks',
-    icon: ClipboardList,
-  },
-  {
-    label: 'Organizasyonlar',
-    href: '/dashboard/organizations',
-    icon: Building2,
-  },
-  {
-    label: 'Profil',
-    href: '/dashboard/profile',
-    icon: User,
-  },
-];
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from '@/components/ui/breadcrumb';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const router = useRouter();
 
-  const handleLogout = () => {
-    // Cookie'leri temizle
-    document.cookie = 'token=; path=/; max-age=0';
-    document.cookie = 'role=; path=/; max-age=0';
-    localStorage.removeItem('token');
-    router.push('/login');
+  // Helper to get breadcrumb name based on path
+  const getPageName = () => {
+    if (pathname.includes('/tasks')) return 'Görevlerim';
+    if (pathname.includes('/organizations')) return 'Organizasyonlar';
+    if (pathname.includes('/users')) return 'Kullanıcılar';
+    if (pathname.includes('/scans')) return 'Denetim';
+    if (pathname.includes('/reports')) return 'Raporlar';
+    if (pathname.includes('/profile')) return 'Profil';
+    return 'Ana Sayfa';
   };
 
   return (
-    <div className="flex min-h-screen bg-background">
-      {/* Sidebar */}
-      <aside className="hidden w-64 flex-col border-r bg-card lg:flex">
-        {/* Logo */}
-        <div className="flex h-16 items-center gap-3 border-b px-6">
-          <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <ClipboardList className="size-4" />
+    <SidebarProvider>
+      <AppSidebar />
+      <SidebarInset>
+        <header className="flex h-16 shrink-0 items-center gap-2 border-b bg-background px-4 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">
+          <div className="flex items-center gap-2 px-2">
+            <SidebarTrigger className="-ml-1" />
+            <Separator orientation="vertical" className="mr-2 h-4" />
+            <Breadcrumb>
+              <BreadcrumbList>
+                <BreadcrumbItem className="hidden md:block">
+                  <BreadcrumbLink href="/dashboard">
+                    DTSO Takip
+                  </BreadcrumbLink>
+                </BreadcrumbItem>
+                <BreadcrumbSeparator className="hidden md:block" />
+                <BreadcrumbItem>
+                  <BreadcrumbPage>{getPageName()}</BreadcrumbPage>
+                </BreadcrumbItem>
+              </BreadcrumbList>
+            </Breadcrumb>
           </div>
-          <span className="text-sm font-semibold leading-tight">
-            DTSO Temizlik<br />
-            <span className="text-xs font-normal text-muted-foreground">Takip Sistemi</span>
-          </span>
-        </div>
-
-        {/* Nav */}
-        <nav className="flex-1 space-y-1 p-4">
-          {navItems.map((item) => {
-            const isActive = pathname === item.href;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                  isActive
-                    ? 'bg-primary/10 text-primary'
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                )}
-              >
-                <item.icon className="size-4" />
-                {item.label}
-                {isActive && <ChevronRight className="ml-auto size-3" />}
-              </Link>
-            );
-          })}
-        </nav>
-
-        {/* Logout */}
-        <div className="border-t p-4">
-          <Button
-            variant="ghost"
-            className="w-full justify-start gap-3 text-muted-foreground hover:text-destructive"
-            onClick={handleLogout}
-          >
-            <LogOut className="size-4" />
-            Çıkış Yap
-          </Button>
-        </div>
-      </aside>
-
-      {/* Mobile header */}
-      <div className="flex flex-1 flex-col">
-        <header className="flex h-14 items-center justify-between border-b bg-card px-4 lg:hidden">
-          <div className="flex items-center gap-2">
-            <div className="flex size-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <ClipboardList className="size-4" />
-            </div>
-            <span className="text-sm font-semibold">DTSO Takip</span>
-          </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleLogout}
-            className="text-muted-foreground"
-          >
-            <LogOut className="size-4" />
-          </Button>
         </header>
-
-        {/* Page content */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8">
+        <div className="flex flex-1 flex-col gap-4 p-4 pt-6 md:p-8 bg-slate-50/50 dark:bg-slate-950/50 min-h-screen">
           {children}
-        </main>
-
-        {/* Mobile bottom nav */}
-        <nav className="flex border-t bg-card lg:hidden">
-          {navItems.map((item) => {
-            const isActive = pathname === item.href;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  'flex flex-1 flex-col items-center gap-1 py-2 text-xs font-medium transition-colors',
-                  isActive
-                    ? 'text-primary'
-                    : 'text-muted-foreground'
-                )}
-              >
-                <item.icon className="size-5" />
-                <span className="hidden sm:block">{item.label}</span>
-              </Link>
-            );
-          })}
-        </nav>
-      </div>
-    </div>
+        </div>
+      </SidebarInset>
+    </SidebarProvider>
   );
 }

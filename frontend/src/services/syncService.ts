@@ -42,8 +42,13 @@ export async function flushQueue(): Promise<void> {
             await removeFromQueue(item.id);
             console.log(`[Sync] İstek #${item.id} başarıyla gönderildi ve silindi.`);
           }
+        } else if (response.status >= 400 && response.status < 500) {
+          console.error(`[Sync] İstek geçersiz veya reddedildi (Status: ${response.status}). Kuyruktan siliniyor.`);
+          if (item.id !== undefined) {
+            await removeFromQueue(item.id);
+          }
         } else {
-          console.error(`[Sync] İstek başarısız oldu (Status: ${response.status}).`);
+          console.error(`[Sync] Sunucu hatası (Status: ${response.status}). Tekrar denenecek.`);
           break;
         }
       } catch (networkError) {

@@ -6,10 +6,10 @@ import { jwtVerify } from 'jose';
  * Route protection mapping path prefixes to allowed user roles.
  */
 const ROLE_ROUTES: Record<string, string[]> = {
-  '/admin': ['ADMIN', 'admin'],
-  '/settings': ['ADMIN', 'admin'],
-  '/reports': ['ADMIN', 'MANAGER', 'admin', 'manager'],
-  '/dashboard': ['ADMIN', 'MANAGER', 'WORKER', 'admin', 'manager', 'worker'],
+  '/admin': ['ADMIN'],
+  '/settings': ['ADMIN'],
+  '/reports': ['ADMIN', 'SUPERVISOR'],
+  '/dashboard': ['ADMIN', 'SUPERVISOR', 'STAFF'],
 };
 
 /**
@@ -62,7 +62,7 @@ export async function proxy(request: NextRequest) {
     if (process.env.JWT_SECRET) {
       const secret = new TextEncoder().encode(process.env.JWT_SECRET);
       const { payload } = await jwtVerify(token, secret);
-      userRole = (payload.role as string) || fallbackRole || 'WORKER';
+      userRole = (payload.role as string) || fallbackRole || 'STAFF';
     }
 
     const matchedRoute = Object.keys(ROLE_ROUTES).find((route) =>

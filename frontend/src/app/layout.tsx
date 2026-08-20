@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import PwaRegister from "@/components/ui/pwa-register";
 import NetworkSyncListener from "@/components/NetworkSyncListener";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -31,9 +32,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <NetworkSyncListener />
-        {children}
-        <PwaRegister />
+        <TooltipProvider>
+          <NetworkSyncListener />
+          {children}
+          <PwaRegister />
+        </TooltipProvider>
       </body>
     </html>
   );

@@ -15,7 +15,7 @@ export function getStoredToken(): string | null {
 
 export function getApiBaseUrl(): string {
   const baseUrl = process.env.NEXT_PUBLIC_API_URL || "";
-  return baseUrl ? baseUrl.replace(/\/$/, "") : "/api";
+  return baseUrl ? baseUrl.replace(/\/$/, "") : "/api/proxy";
 }
 
 export async function apiRequest<T = unknown>(

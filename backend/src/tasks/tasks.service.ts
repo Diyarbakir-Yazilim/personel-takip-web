@@ -22,6 +22,64 @@ export class TasksService {
     };
   }
 
+  async getDashboardStats() {
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const endOfDay = new Date(startOfDay);
+    endOfDay.setDate(endOfDay.getDate() + 1);
+
+    const tasks = await this.prisma.taskInstance.findMany({
+      where: {
+        scheduledFor: {
+          gte: startOfDay,
+          lt: endOfDay,
+        },
+      },
+    });
+
+    const totalTasks = tasks.length;
+    let completedTasks = 0;
+    let pendingTasks = 0;
+    let inProgressTasks = 0;
+    let flaggedTasks = 0;
+    let missedTasks = 0;
+
+    for (const task of tasks) {
+      if (task.status === 'DONE') completedTasks++;
+      else if (task.status === 'SCHEDULED' || task.status === 'PENDING') pendingTasks++;
+      else if (task.status === 'IN_PROGRESS') inProgressTasks++;
+      else if (task.status === 'FLAGGED') flaggedTasks++;
+      else if (task.status === 'MISSED') missedTasks++;
+    }
+
+    const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+    const recentActivity = await this.prisma.scanEvent.findMany({
+      take: 10,
+      orderBy: { clientScannedAt: 'desc' },
+      include: {
+        user: { select: { fullName: true } },
+        task: {
+          include: {
+            zone: { select: { name: true, code: true } }
+          }
+        }
+      }
+    });
+
+    return {
+      totalTasks,
+      completedTasks,
+      pendingTasks,
+      inProgressTasks,
+      flaggedTasks,
+      missedTasks,
+      completionRate,
+      recentActivity
+    };
+  }
+
   async findMyDayTasks(userId: string) {
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
@@ -87,7 +145,7 @@ export class TasksService {
     return this.formatTaskResponse(task);
   }
 
-  async startTask(id: string, userId: string) {
+  async startTask(id: string, userId: string, qrCode?: string) {
     const task = await this.prisma.taskInstance.findUnique({
       where: { id },
     });
@@ -120,13 +178,31 @@ export class TasksService {
       },
     });
 
+    if (qrCode) {
+      const crypto = require('crypto');
+      await this.prisma.scanEvent.create({
+        data: {
+          idempotencyKey: crypto.randomUUID(),
+          clientEventId: crypto.randomUUID(),
+          userId,
+          taskId: id,
+          token: qrCode,
+          requestedAction: 'CHECK_IN',
+          resolvedAction: 'CHECK_IN',
+          method: 'DYNAMIC_QR',
+          clientScannedAt: new Date(),
+        }
+      });
+    }
+
     return this.formatTaskResponse(updated);
   }
 
   async completeTask(
     id: string,
     userId: string,
-    completionData?: { notes?: string; checklistItems?: number[] }
+    completionData?: { notes?: string; checklistItems?: number[] },
+    qrCode?: string
   ) {
     const task = await this.prisma.taskInstance.findUnique({
       where: { id },
@@ -159,6 +235,23 @@ export class TasksService {
         },
       },
     });
+
+    if (qrCode) {
+      const crypto = require('crypto');
+      await this.prisma.scanEvent.create({
+        data: {
+          idempotencyKey: crypto.randomUUID(),
+          clientEventId: crypto.randomUUID(),
+          userId,
+          taskId: id,
+          token: qrCode,
+          requestedAction: 'CHECK_OUT',
+          resolvedAction: 'CHECK_OUT',
+          method: 'DYNAMIC_QR',
+          clientScannedAt: new Date(),
+        }
+      });
+    }
 
     return this.formatTaskResponse(updated);
   }

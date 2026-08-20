@@ -89,6 +89,11 @@ export default function StaffDailyTasks() {
   const [qrAction, setQrAction] = useState<QRAction | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>("all");
+  
+  const [successModal, setSuccessModal] = useState<{ isOpen: boolean; message: string }>({
+    isOpen: false,
+    message: "",
+  });
 
   const isProcessingQr = useRef<boolean>(false);
 
@@ -182,6 +187,15 @@ export default function StaffDailyTasks() {
         } else {
           await loadTasks();
         }
+
+        setSuccessModal({
+          isOpen: true,
+          message: action === "start" ? "Görev başarıyla başlatıldı! Kolay gelsin." : "Tebrikler! Görev başarıyla tamamlandı.",
+        });
+        
+        setTimeout(() => {
+          setSuccessModal({ isOpen: false, message: "" });
+        }, 3000);
       } catch (err) {
         setActionError(err instanceof Error ? err.message : "Beklenmeyen bir hata oluştu.");
       } finally {
@@ -394,11 +408,11 @@ export default function StaffDailyTasks() {
                   <p className="text-sm text-muted-foreground">Bugün sana atanan görevler</p>
                 </div>
 
-                <TabsList className="w-full sm:w-auto">
-                  <TabsTrigger value="all">Tümü ({stats.total})</TabsTrigger>
-                  <TabsTrigger value="pending">Bekleyen ({stats.pending})</TabsTrigger>
-                  <TabsTrigger value="progress">Devam Eden ({stats.inProgress})</TabsTrigger>
-                  <TabsTrigger value="done">Tamamlanan ({stats.completed})</TabsTrigger>
+                <TabsList className="flex h-12 w-full items-center justify-start gap-2 overflow-x-auto rounded-full bg-slate-100 p-1 px-2 no-scrollbar dark:bg-slate-800 sm:w-auto">
+                  <TabsTrigger className="min-w-fit rounded-full px-4 py-1.5 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm" value="all">Tümü ({stats.total})</TabsTrigger>
+                  <TabsTrigger className="min-w-fit rounded-full px-4 py-1.5 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm" value="pending">Bekleyen ({stats.pending})</TabsTrigger>
+                  <TabsTrigger className="min-w-fit rounded-full px-4 py-1.5 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm" value="progress">Devam Eden ({stats.inProgress})</TabsTrigger>
+                  <TabsTrigger className="min-w-fit rounded-full px-4 py-1.5 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm" value="done">Tamamlanan ({stats.completed})</TabsTrigger>
                 </TabsList>
               </div>
 
@@ -447,6 +461,24 @@ export default function StaffDailyTasks() {
                 onError={(message) => setActionError(`Kamera hatası: ${message}`)}
               />
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* SUCCESS DIALOG */}
+      <Dialog open={successModal.isOpen} onOpenChange={(open) => setSuccessModal({ ...successModal, isOpen: open })}>
+        <DialogContent className="sm:max-w-md text-center py-10">
+          <div className="flex flex-col items-center justify-center gap-4">
+            <div className="flex size-20 items-center justify-center rounded-full bg-emerald-100 animate-bounce">
+              <CheckCircle2 className="size-10 text-emerald-600" />
+            </div>
+            <DialogTitle className="text-2xl text-emerald-700">Başarılı!</DialogTitle>
+            <DialogDescription className="text-base">
+              {successModal.message}
+            </DialogDescription>
+            <Button className="mt-4 w-full max-w-[200px]" onClick={() => setSuccessModal({ isOpen: false, message: "" })}>
+              Tamam
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -499,86 +531,96 @@ function TaskList({
 
         const isLoading = actionLoading === task.id;
 
+        const statusColorMap: Record<string, string> = {
+          SCHEDULED: "border-slate-300",
+          PENDING: "border-yellow-400",
+          IN_PROGRESS: "border-blue-500",
+          DONE: "border-emerald-500",
+          MISSED: "border-red-500",
+          FLAGGED: "border-orange-500",
+        };
+        const statusBorder = statusColorMap[task.status] || "border-slate-200";
+
         return (
-          <Card key={task.id} className="overflow-hidden transition-shadow hover:shadow-md">
-            <CardHeader className="pb-3">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div className="flex min-w-0 items-center gap-3">
-                  <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+          <Card 
+            key={task.id} 
+            className={cn(
+              "relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-all dark:border-slate-800 dark:bg-slate-900/50",
+              "border-l-[4px]",
+              statusBorder
+            )}
+          >
+            <CardHeader className="p-5 pb-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-3.5">
+                  <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
                     <MapPin className="size-5" />
                   </div>
                   <div className="min-w-0">
-                    <CardTitle className="truncate text-base">{task.zoneName}</CardTitle>
-                    <CardDescription>{task.zoneCode}</CardDescription>
+                    <CardTitle className="truncate text-base font-bold tracking-tight text-slate-900 dark:text-slate-100">{task.zoneName}</CardTitle>
+                    <CardDescription className="text-[13px] font-medium text-slate-500">{task.zoneCode}</CardDescription>
                   </div>
                 </div>
 
-                <Badge variant="outline" className={cn("w-fit shrink-0", config.className)}>
+                <Badge variant="outline" className={cn("w-fit shrink-0 rounded-lg px-2.5 py-1 text-xs font-semibold", config.className)}>
                   {config.label}
                 </Badge>
               </div>
             </CardHeader>
 
-            <CardContent className="space-y-4">
-              <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-                <span className="flex items-center gap-1.5">
-                  <Clock3 className="size-4" />
+            <CardContent className="space-y-4 p-5 pt-0">
+              <div className="flex flex-wrap gap-2.5 text-[13px] font-medium text-slate-600 dark:text-slate-400">
+                <span className="flex items-center gap-1.5 rounded-lg bg-slate-50 px-2.5 py-1.5 dark:bg-slate-800/50">
+                  <Clock3 className="size-3.5" />
                   {formatTime(task.scheduledFor)}
                 </span>
 
-                <span className="flex items-center gap-1.5">
-                  <ClipboardList className="size-4" />
+                <span className="flex items-center gap-1.5 rounded-lg bg-slate-50 px-2.5 py-1.5 dark:bg-slate-800/50">
+                  <ClipboardList className="size-3.5" />
                   {task.checklistCount} kontrol
                 </span>
 
                 {task.completedAt && (
-                  <span className="flex items-center gap-1.5 text-emerald-600">
-                    <CheckCircle2 className="size-4" />
-                    Tamamlandı {formatTime(task.completedAt)}
+                  <span className="flex items-center gap-1.5 rounded-lg bg-emerald-50 px-2.5 py-1.5 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400">
+                    <CheckCircle2 className="size-3.5" />
+                    Bitti {formatTime(task.completedAt)}
                   </span>
                 )}
               </div>
 
               {task.checklist && task.checklist.length > 0 && (
                 <>
-                  <Separator />
-                  <div>
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Kontrol Listesi
-                    </p>
-                    <div className="grid gap-2">
-                      {task.checklist.slice(0, 4).map((item, index) => (
-                        <div key={`${task.id}-${index}`} className="flex items-start gap-2 text-sm">
-                          <span className="mt-2 size-1.5 shrink-0 rounded-full bg-muted-foreground" />
-                          <span>{item}</span>
+                  <div className="mt-2 rounded-xl bg-slate-50 p-3.5 dark:bg-slate-900/50">
+                    <div className="grid gap-2.5">
+                      {task.checklist.slice(0, 3).map((item, index) => (
+                        <div key={`${task.id}-${index}`} className="flex items-start gap-2.5 text-[13px] font-medium">
+                          <div className="mt-1 flex size-3.5 shrink-0 items-center justify-center rounded-full border-2 border-slate-300 dark:border-slate-600" />
+                          <span className="text-slate-700 dark:text-slate-300 leading-snug">{item}</span>
                         </div>
                       ))}
                     </div>
-                    {task.checklist.length > 4 && (
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        + {task.checklist.length - 4} kontrol daha
+                    {task.checklist.length > 3 && (
+                      <p className="mt-2.5 pl-6 text-[11px] font-semibold text-primary">
+                        + {task.checklist.length - 3} kontrol daha
                       </p>
                     )}
                   </div>
                 </>
               )}
 
-              <Separator />
+              <Separator className="my-2.5 opacity-50" />
 
               {/* ACTIONS */}
-              <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+              <div className="flex flex-col gap-2.5 sm:flex-row sm:justify-end">
                 {(task.status === "SCHEDULED" || task.status === "PENDING") && (
                   <Button
                     type="button"
+                    size="default"
                     disabled={isLoading}
                     onClick={() => onStart(task.id)}
-                    className="gap-2"
+                    className="w-full gap-2 rounded-xl text-sm font-semibold shadow-sm sm:w-auto transition-transform active:scale-[0.98] py-5"
                   >
-                    {isLoading ? (
-                      <Loader2 className="size-4 animate-spin" />
-                    ) : (
-                      <Play className="size-4" />
-                    )}
+                    {isLoading ? <Loader2 className="size-4 animate-spin" /> : <Play className="size-4" />}
                     Göreve Başla
                   </Button>
                 )}
@@ -586,15 +628,12 @@ function TaskList({
                 {task.status === "IN_PROGRESS" && (
                   <Button
                     type="button"
+                    size="default"
                     disabled={isLoading}
                     onClick={() => onComplete(task.id)}
-                    className="gap-2 bg-emerald-600 text-white hover:bg-emerald-700"
+                    className="w-full gap-2 rounded-xl bg-emerald-600 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 sm:w-auto transition-transform active:scale-[0.98] py-5"
                   >
-                    {isLoading ? (
-                      <Loader2 className="size-4 animate-spin" />
-                    ) : (
-                      <CheckCircle2 className="size-4" />
-                    )}
+                    {isLoading ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
                     Görevi Tamamla
                   </Button>
                 )}
@@ -605,16 +644,13 @@ function TaskList({
                     <Button
                       type="button"
                       variant="outline"
+                      size="default"
                       disabled={isLoading}
                       onClick={() => onFlag(task.id)}
-                      className="gap-2"
+                      className="w-full gap-2 rounded-xl text-sm font-semibold sm:w-auto py-5"
                     >
-                      {isLoading ? (
-                        <Loader2 className="size-4 animate-spin" />
-                      ) : (
-                        <Flag className="size-4" />
-                      )}
-                      Kontrol Gerekiyor
+                      {isLoading ? <Loader2 className="size-4 animate-spin" /> : <Flag className="size-4" />}
+                      Sorun Bildir
                     </Button>
                   )}
               </div>
