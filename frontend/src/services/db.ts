@@ -2,6 +2,7 @@
  * IndexedDB layer for the offline scan queue.
  *
  * Store: `pending_scans`
+ *
  * Each record represents ONE user action (task start/complete/flag) that was
  * performed while offline (or during a sudden network drop) and must be
  * replayed against the backend once connectivity is restored.
@@ -22,23 +23,41 @@ export type PendingScanAction = 'start' | 'complete' | 'flag';
 
 export interface PendingScan {
   id?: number;
+
   /** Client-generated UUID used for idempotency / tracing. */
   clientEventId: string;
+
   taskId: string;
+
   action: PendingScanAction;
+
   /** Fully-resolved endpoint URL to replay against. */
   url: string;
+
   method: 'PATCH' | 'POST' | 'PUT' | 'DELETE';
+
   payload: Record<string, unknown>;
+
   /** ISO timestamp of the moment the user performed the action offline. */
   clientScannedAt: string;
+
   attempts: number;
+
   createdAt: number;
 }
 
 const DB_NAME = 'OfflineQueueDB';
 const DB_VERSION = 3;
 const STORE_NAME = 'outbox';
+const LEGACY_STORE_NAME = 'pending_scans';
+
+/**
+ * Events emitted when the offline queue changes or a flush removes records.
+ */
+export const QUEUE_CHANGED_EVENT = 'offline-queue-changed';
+export const QUEUE_FLUSHED_EVENT = 'offline-queue-flushed';
+
+let dbPromise: Promise<IDBDatabase> | null = null;
 
 export function openDB(): Promise<IDBDatabase> {
   if (dbPromise) return dbPromise;
@@ -59,20 +78,26 @@ export function openDB(): Promise<IDBDatabase> {
           keyPath: 'id',
           autoIncrement: true,
         });
+
         store.createIndex('by_taskId', 'taskId', { unique: false });
-        store.createIndex('by_clientEventId', 'clientEventId', { unique: true });
+        store.createIndex('by_clientEventId', 'clientEventId', {
+          unique: true,
+        });
       }
     };
 
     request.onsuccess = () => {
       const db = request.result;
+
       // If another tab upgrades the schema, release the connection.
       db.onversionchange = () => {
         db.close();
         dbPromise = null;
       };
+
       resolve(db);
     };
+
     request.onerror = () => {
       dbPromise = null;
       reject(request.error);
@@ -104,10 +129,12 @@ export async function addPendingScan(
     };
 
     const request = store.add(record);
+
     request.onsuccess = () => {
       notifyQueueChanged();
       resolve(request.result as number);
     };
+
     request.onerror = () => reject(request.error);
   });
 }
@@ -124,8 +151,10 @@ export async function getPendingScans(): Promise<PendingScan[]> {
       const items = (request.result as PendingScan[]).sort(
         (a, b) => (a.id ?? 0) - (b.id ?? 0),
       );
+
       resolve(items);
     };
+
     request.onerror = () => reject(request.error);
   });
 }
@@ -141,6 +170,7 @@ export async function removePendingScan(id: number): Promise<void> {
       notifyQueueChanged();
       resolve();
     };
+
     request.onerror = () => reject(request.error);
   });
 }
@@ -155,19 +185,27 @@ export async function updatePendingScan(
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readwrite');
     const store = tx.objectStore(STORE_NAME);
+
     const getRequest = store.get(id);
 
     getRequest.onsuccess = () => {
       const existing = getRequest.result as PendingScan | undefined;
+
       if (!existing) {
         resolve();
         return;
       }
 
-      const putRequest = store.put({ ...existing, ...patch, id });
+      const putRequest = store.put({
+        ...existing,
+        ...patch,
+        id,
+      });
+
       putRequest.onsuccess = () => resolve();
       putRequest.onerror = () => reject(putRequest.error);
     };
+
     getRequest.onerror = () => reject(getRequest.error);
   });
 }
