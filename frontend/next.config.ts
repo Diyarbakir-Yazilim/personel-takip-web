@@ -11,6 +11,7 @@ const nextConfig: NextConfig = {
     "192.168.1.108",
     "viewing-played-highs-nano.trycloudflare.com",
   ],
+  output: "standalone",
 };
 
 export default nextConfig;
