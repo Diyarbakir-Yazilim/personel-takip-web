@@ -23,6 +23,40 @@ services:
     volumes:
       - redis_data:/data
 
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: personel_takip_backend
+    restart: always
+    ports:
+      - "5000:5000"
+    environment:
+      - DATABASE_URL=postgresql://myuser:mypassword@postgres:5432/mydatabase?schema=public
+      - DB_USER=myuser
+      - DB_PASSWORD=mypassword
+      - DB_HOST=postgres
+      - DB_NAME=mydatabase
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - NODE_ENV=production
+    depends_on:
+      - postgres
+      - redis
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: personel_takip_frontend
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - BACKEND_API_URL=http://backend:5000/v1
+    depends_on:
+      - backend
+
 volumes:
   postgres_data:
   redis_data:
