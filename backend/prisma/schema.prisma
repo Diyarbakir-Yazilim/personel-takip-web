@@ -48,12 +48,15 @@ enum ScanMethod {
 // ==========================================
 
 model User {
-  id       String   @id @default(uuid()) @db.Uuid
-  email    String   @unique
-  password String
-  fullName String
-  role     UserRole @default(STAFF)
-  deviceId String?
+  id         String   @id @default(uuid()) @db.Uuid
+  email      String   @unique
+  password   String
+  fullName   String
+  role       UserRole @default(STAFF)
+  deviceId   String?
+  avatarUrl  String?
+  phone      String?
+  department String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
