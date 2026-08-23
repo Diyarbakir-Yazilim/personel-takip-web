@@ -108,8 +108,39 @@ export class ScansService {
       this.prisma.scanEvent.count(),
     ]);
 
+    const scansWithDuration = await Promise.all(
+      scans.map(async (scan) => {
+        let durationMinutes: number | null = null;
+
+        if (scan.resolvedAction === 'CHECK_OUT') {
+          const lastCheckIn = await this.prisma.scanEvent.findFirst({
+            where: {
+              userId: scan.userId,
+              resolvedAction: 'CHECK_IN',
+              clientScannedAt: {
+                lt: scan.clientScannedAt,
+              },
+            },
+            orderBy: {
+              clientScannedAt: 'desc',
+            },
+          });
+
+          if (lastCheckIn) {
+            const diffMs = scan.clientScannedAt.getTime() - lastCheckIn.clientScannedAt.getTime();
+            durationMinutes = Math.round(diffMs / 60000);
+          }
+        }
+
+        return {
+          ...scan,
+          durationMinutes,
+        };
+      })
+    );
+
     return {
-      data: scans,
+      data: scansWithDuration,
       meta: {
         total,
         skip,
