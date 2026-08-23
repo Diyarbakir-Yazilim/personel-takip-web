@@ -40,6 +40,7 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - NODE_ENV=production
+      - JWT_SECRET=my-super-secret-jwt-key
     depends_on:
       - postgres
       - redis
@@ -54,6 +55,7 @@ services:
       - "3000:3000"
     environment:
       - BACKEND_API_URL=http://backend:5000/v1
+      - JWT_SECRET=my-super-secret-jwt-key
     depends_on:
       - backend
 
