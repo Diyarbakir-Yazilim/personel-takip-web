@@ -54,17 +54,19 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password.');
     }
 
-    if (!user.deviceId) {
-      
-      await this.prisma.user.update({
-        where: { id: user.id },
-        data: { deviceId: dto.deviceId },
-      });
-    } else if (user.deviceId !== dto.deviceId) {
-      
-      throw new UnauthorizedException(
-        'This account is registered to another device. You can only log in from your bound device.',
-      );
+    if (user.role !== 'ADMIN') {
+      if (!user.deviceId) {
+        
+        await this.prisma.user.update({
+          where: { id: user.id },
+          data: { deviceId: dto.deviceId },
+        });
+      } else if (user.deviceId !== dto.deviceId) {
+        
+        throw new UnauthorizedException(
+          'This account is registered to another device. You can only log in from your bound device.',
+        );
+      }
     }
     return this.generateToken(user.id, user.email, user.role);
   }
