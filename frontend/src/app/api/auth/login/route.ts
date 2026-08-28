@@ -7,7 +7,7 @@ export async function POST(request: NextRequest) {
 
     // Forward login payload to NestJS backend
     const backendUrl = process.env.BACKEND_API_URL || 'http://localhost:5000/v1';
-const backendRes = await fetch(`${backendUrl}/auth/login`, {
+    const backendRes = await fetch(`${backendUrl}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -34,24 +34,68 @@ const backendRes = await fetch(`${backendUrl}/auth/login`, {
       return NextResponse.json(data, { status: backendRes.status });
     }
 
-    // Extract access_token from backend response
-    const token = data.access_token;
-
-    // Prepare response returning user details to client
+    // Response objesini oluşturuyoruz
     const response = NextResponse.json({
       success: true,
       user: data.user,
-      access_token: token,
     });
 
-    // Store token securely in an HttpOnly cookie
-    if (token) {
-      response.cookies.set('access_token', token, {
-        httpOnly: true, // Prevents client-side JS access (XSS mitigation)
-        secure: process.env.NODE_ENV === 'production',
+    // 1. Backend'den gelen Set-Cookie başlıklarını okuyalım
+    const rawSetCookies = backendRes.headers.getSetCookie();
+    if (rawSetCookies && rawSetCookies.length > 0) {
+      rawSetCookies.forEach((cookieStr) => {
+        response.headers.append('set-cookie', cookieStr);
+      });
+    }
+
+    // 2. access_token değerini bul ve çereze yaz
+    let accessTokenValue = data?.access_token || data?.token;
+
+    if (!accessTokenValue && rawSetCookies) {
+      const accessCookieStr = rawSetCookies.find((c) => c.startsWith('access_token='));
+      if (accessCookieStr) {
+        accessTokenValue = accessCookieStr.split(';')[0].split('=')[1];
+      }
+    }
+
+    if (accessTokenValue) {
+      response.cookies.set('access_token', accessTokenValue, {
+        httpOnly: true,
+        secure: false, // Localhost için false
         sameSite: 'lax',
         path: '/',
-        maxAge: 60 * 60 * 24, // 1 day lifetime
+        maxAge: 15 * 60, // 15 dakika
+      });
+    }
+
+    // 3. REFRESH TOKEN EKLENDİ: refresh_token değerini bul ve çereze yaz
+    let refreshTokenValue = data?.refresh_token;
+
+    if (!refreshTokenValue && rawSetCookies) {
+      const refreshCookieStr = rawSetCookies.find((c) => c.startsWith('refresh_token='));
+      if (refreshCookieStr) {
+        refreshTokenValue = refreshCookieStr.split(';')[0].split('=')[1];
+      }
+    }
+
+    if (refreshTokenValue) {
+      response.cookies.set('refresh_token', refreshTokenValue, {
+        httpOnly: true,
+        secure: false, // Localhost için false
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 3 * 24 * 60 * 60, // 3 gün (259200 saniye)
+      });
+    }
+
+    // 4. Middleware yönlendirmesi ve rol kontrolü için role çerezi
+    if (data?.user?.role) {
+      response.cookies.set('role', String(data.user.role), {
+        httpOnly: false,
+        secure: false,
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 3 * 24 * 60 * 60,
       });
     }
 

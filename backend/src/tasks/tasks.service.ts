@@ -1,24 +1,30 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { TaskStatus } from '@prisma/client';
+import { randomUUID } from 'crypto';
 
 @Injectable()
 export class TasksService {
   constructor(private readonly prisma: PrismaService) {}
 
-
+  /**
+   * Formats raw task database entity into a standardized response payload.
+   */
   private formatTaskResponse(task: any) {
-
     return {
       id: task.id,
-      zoneCode: task.zone.code,
-      zoneName: task.zone.name,
+      zoneCode: task.zone?.code,
+      zoneName: task.zone?.name,
       status: task.status,
       scheduledFor: task.scheduledFor,
       startedAt: task.startedAt,
       completedAt: task.completedAt,
       checklist: task.checklist,
-      checklistCount: task.checklist.length,
+      checklistCount: Array.isArray(task.checklist) ? task.checklist.length : 0,
     };
   }
 
@@ -46,14 +52,19 @@ export class TasksService {
     let missedTasks = 0;
 
     for (const task of tasks) {
-      if (task.status === 'DONE') completedTasks++;
-      else if (task.status === 'SCHEDULED' || task.status === 'PENDING') pendingTasks++;
-      else if (task.status === 'IN_PROGRESS') inProgressTasks++;
-      else if (task.status === 'FLAGGED') flaggedTasks++;
-      else if (task.status === 'MISSED') missedTasks++;
+      if (task.status === TaskStatus.DONE) completedTasks++;
+      else if (
+        task.status === TaskStatus.SCHEDULED ||
+        task.status === TaskStatus.PENDING
+      )
+        pendingTasks++;
+      else if (task.status === TaskStatus.IN_PROGRESS) inProgressTasks++;
+      else if (task.status === TaskStatus.FLAGGED) flaggedTasks++;
+      else if (task.status === TaskStatus.MISSED) missedTasks++;
     }
 
-    const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+    const completionRate =
+      totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
     const recentActivity = await this.prisma.scanEvent.findMany({
       take: 10,
@@ -62,10 +73,10 @@ export class TasksService {
         user: { select: { fullName: true } },
         task: {
           include: {
-            zone: { select: { name: true, code: true } }
-          }
-        }
-      }
+            zone: { select: { name: true, code: true } },
+          },
+        },
+      },
     });
 
     return {
@@ -76,7 +87,7 @@ export class TasksService {
       flaggedTasks,
       missedTasks,
       completionRate,
-      recentActivity
+      recentActivity,
     };
   }
 
@@ -135,11 +146,13 @@ export class TasksService {
     });
 
     if (!task) {
-      throw new NotFoundException('Gorev bulunamadi');
+      throw new NotFoundException('Task not found');
     }
 
     if (task.userId !== userId) {
-      throw new BadRequestException('Bu goreve erisme izniniz yok');
+      throw new BadRequestException(
+        'You do not have permission to access this task',
+      );
     }
 
     return this.formatTaskResponse(task);
@@ -151,21 +164,28 @@ export class TasksService {
     });
 
     if (!task) {
-      throw new NotFoundException('Gorev bulunamadi');
+      throw new NotFoundException('Task not found');
     }
 
     if (task.userId !== userId) {
-      throw new BadRequestException('Bu goreve erisme izniniz yok');
+      throw new BadRequestException(
+        'You do not have permission to access this task',
+      );
     }
 
-    if (task.status !== 'SCHEDULED' && task.status !== 'PENDING') {
-      throw new BadRequestException('Bu gorev baslatilmis veya sonlanmis');
+    if (
+      task.status !== TaskStatus.SCHEDULED &&
+      task.status !== TaskStatus.PENDING
+    ) {
+      throw new BadRequestException(
+        'This task has already been started or completed',
+      );
     }
 
     const updated = await this.prisma.taskInstance.update({
       where: { id },
       data: {
-        status: 'IN_PROGRESS',
+        status: TaskStatus.IN_PROGRESS,
         startedAt: new Date(),
       },
       include: {
@@ -179,11 +199,10 @@ export class TasksService {
     });
 
     if (qrCode) {
-      const crypto = require('crypto');
       await this.prisma.scanEvent.create({
         data: {
-          idempotencyKey: crypto.randomUUID(),
-          clientEventId: crypto.randomUUID(),
+          idempotencyKey: randomUUID(),
+          clientEventId: randomUUID(),
           userId,
           taskId: id,
           token: qrCode,
@@ -191,7 +210,7 @@ export class TasksService {
           resolvedAction: 'CHECK_IN',
           method: 'DYNAMIC_QR',
           clientScannedAt: new Date(),
-        }
+        },
       });
     }
 
@@ -202,29 +221,39 @@ export class TasksService {
     id: string,
     userId: string,
     completionData?: { notes?: string; checklistItems?: number[] },
-    qrCode?: string
+    qrCode?: string,
   ) {
     const task = await this.prisma.taskInstance.findUnique({
       where: { id },
     });
 
     if (!task) {
-      throw new NotFoundException('Gorev bulunamadi');
+      throw new NotFoundException('Task not found');
     }
 
     if (task.userId !== userId) {
-      throw new BadRequestException('Bu goreve erisme izniniz yok');
+      throw new BadRequestException(
+        'You do not have permission to access this task',
+      );
     }
 
-    if (task.status !== 'IN_PROGRESS') {
-      throw new BadRequestException('Sadece baslamis gorevler tamamlanabilir');
+    if (task.status !== TaskStatus.IN_PROGRESS) {
+      throw new BadRequestException('Only tasks in progress can be completed');
     }
+
+    const now = new Date();
+    const startTime = task.startedAt ? task.startedAt.getTime() : now.getTime();
+    const durationSec = Math.max(
+      0,
+      Math.floor((now.getTime() - startTime) / 1000),
+    );
 
     const updated = await this.prisma.taskInstance.update({
       where: { id },
       data: {
-        status: 'DONE',
-        completedAt: new Date(),
+        status: TaskStatus.DONE,
+        completedAt: now,
+        durationSec,
       },
       include: {
         zone: {
@@ -237,11 +266,10 @@ export class TasksService {
     });
 
     if (qrCode) {
-      const crypto = require('crypto');
       await this.prisma.scanEvent.create({
         data: {
-          idempotencyKey: crypto.randomUUID(),
-          clientEventId: crypto.randomUUID(),
+          idempotencyKey: randomUUID(),
+          clientEventId: randomUUID(),
           userId,
           taskId: id,
           token: qrCode,
@@ -249,7 +277,7 @@ export class TasksService {
           resolvedAction: 'CHECK_OUT',
           method: 'DYNAMIC_QR',
           clientScannedAt: new Date(),
-        }
+        },
       });
     }
 
@@ -262,17 +290,19 @@ export class TasksService {
     });
 
     if (!task) {
-      throw new NotFoundException('Gorev bulunamadi');
+      throw new NotFoundException('Task not found');
     }
 
     if (task.userId !== userId) {
-      throw new BadRequestException('Bu goreve erisme izniniz yok');
+      throw new BadRequestException(
+        'You do not have permission to access this task',
+      );
     }
 
     const updated = await this.prisma.taskInstance.update({
       where: { id },
       data: {
-        status: 'FLAGGED',
+        status: TaskStatus.FLAGGED,
       },
       include: {
         zone: {
@@ -293,24 +323,26 @@ export class TasksService {
     updateData: {
       status?: TaskStatus;
       checklist?: string[];
-    }
+    },
   ) {
     const task = await this.prisma.taskInstance.findUnique({
       where: { id },
     });
 
     if (!task) {
-      throw new NotFoundException('Gorev bulunamadi');
+      throw new NotFoundException('Task not found');
     }
 
     if (task.userId !== userId) {
-      throw new BadRequestException('Bu goreve erisme izniniz yok');
+      throw new BadRequestException(
+        'You do not have permission to access this task',
+      );
     }
 
     const updated = await this.prisma.taskInstance.update({
       where: { id },
       data: {
-        ...(updateData?.status && { status: updateData.status as TaskStatus }),
+        ...(updateData?.status && { status: updateData.status }),
         ...(updateData?.checklist && { checklist: updateData.checklist }),
       },
       include: {
@@ -340,15 +372,27 @@ export class TasksService {
     }
 
     if (task.status === TaskStatus.DONE || task.status === TaskStatus.MISSED) {
-      throw new BadRequestException(`Tasks with status '${task.status}' cannot be updated.`);
+      throw new BadRequestException(
+        `Tasks with status '${task.status}' cannot be updated.`,
+      );
     }
 
-    if (newStatus === TaskStatus.DONE && task.status !== TaskStatus.IN_PROGRESS) {
-      throw new BadRequestException('Task must be marked as IN_PROGRESS before it can be completed.');
+    if (
+      newStatus === TaskStatus.DONE &&
+      task.status !== TaskStatus.IN_PROGRESS
+    ) {
+      throw new BadRequestException(
+        'Task must be marked as IN_PROGRESS before it can be completed.',
+      );
     }
 
     const now = new Date();
-    const updateData: Record<string, any> = { status: newStatus };
+    const updateData: {
+      status: TaskStatus;
+      startedAt?: Date;
+      completedAt?: Date;
+      durationSec?: number;
+    } = { status: newStatus };
 
     if (newStatus === TaskStatus.IN_PROGRESS) {
       updateData.startedAt = now;
@@ -357,10 +401,15 @@ export class TasksService {
     if (newStatus === TaskStatus.DONE) {
       updateData.completedAt = now;
 
-      const startTime = task.startedAt ? task.startedAt.getTime() : now.getTime();
+      const startTime = task.startedAt
+        ? task.startedAt.getTime()
+        : now.getTime();
       const endTime = now.getTime();
 
-      updateData.durationSec = Math.max(0, Math.floor((endTime - startTime) / 1000));
+      updateData.durationSec = Math.max(
+        0,
+        Math.floor((endTime - startTime) / 1000),
+      );
     }
 
     return this.prisma.taskInstance.update({

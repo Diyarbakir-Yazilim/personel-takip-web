@@ -1,4 +1,9 @@
-import { Injectable, OnModuleDestroy, OnModuleInit, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  OnModuleDestroy,
+  OnModuleInit,
+  Logger,
+} from '@nestjs/common';
 import Redis from 'ioredis';
 
 @Injectable()
@@ -20,7 +25,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
       });
     }
 
-    this.client.on('error', (err) => {
+    this.client.on('error', (err: Error) => {
       this.logger.error('Redis connection error:', err.message);
     });
 
@@ -29,15 +34,21 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
-  onModuleDestroy() {
-    this.client.quit();
+  async onModuleDestroy() {
+    if (this.client) {
+      await this.client.quit();
+    }
   }
 
   async get(key: string): Promise<string | null> {
     return this.client.get(key);
   }
 
-  async set(key: string, value: string, ttlSeconds?: number): Promise<'OK'> {
+  async set(
+    key: string,
+    value: string,
+    ttlSeconds?: number,
+  ): Promise<string | null> {
     if (ttlSeconds) {
       return this.client.set(key, value, 'EX', ttlSeconds);
     }

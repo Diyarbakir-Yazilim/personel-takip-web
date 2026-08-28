@@ -53,7 +53,7 @@ model User {
   password   String
   fullName   String
   role       UserRole @default(STAFF)
-  deviceId   String?
+  //deviceId   String?  // DEMO MODE: Device binding disabled
   avatarUrl  String?
   phone      String?
   department String?
@@ -82,14 +82,15 @@ model Building {
 model Floor {
   id         String   @id @default(uuid()) @db.Uuid
   buildingId String?  @db.Uuid
-  name       String // Örn: "1. Kat", "Bodrum Kat"
-  level      Int      @default(0) // Kat sırası (-1, 0, 1, 2 vs.)
+  name       String   // e.g., "1st Floor", "Basement"
+  level      Int      @default(0) // Floor order (-1, 0, 1, 2 etc.)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
   building Building? @relation(fields: [buildingId], references: [id], onDelete: Cascade)
   zones    Zone[]
 
+  
   @@map("floors")
 }
 
@@ -98,8 +99,8 @@ model Zone {
   floorId        String?  @db.Uuid
   code           String   @unique
   name           String
-  minDurationSec Int?
-  maxDurationSec Int?
+  minDurationSec Int?   // Minimum required duration in seconds
+  maxDurationSec Int?    // Maximum allowed duration in seconds
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -131,6 +132,8 @@ model TaskInstance {
   @@index([userId])
   @@index([scheduledFor])
   @@index([status])
+  @@index([scheduledFor, status])
+  @@index([userId, status])
   @@map("task_instances")
 }
 
@@ -155,9 +158,10 @@ model ScanEvent {
   user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   task            TaskInstance?    @relation(fields: [taskId], references: [id], onDelete: SetNull)
   location        ScanLocation?
-  deviceIntegrity DeviceIntegrity?
+  //deviceIntegrity DeviceIntegrity? // DEMO MODE: Disabled
 
   @@index([userId])
+  @@index([taskId])
   @@index([clientScannedAt])
   @@map("scan_events")
 }
@@ -174,7 +178,7 @@ model ScanLocation {
   @@map("scan_locations")
 }
 
-model DeviceIntegrity {
+/* model DeviceIntegrity {
   id             String  @id @default(uuid()) @db.Uuid
   scanEventId    String  @unique @db.Uuid
   isRooted       Boolean @default(false)
@@ -184,17 +188,17 @@ model DeviceIntegrity {
   scanEvent ScanEvent @relation(fields: [scanEventId], references: [id], onDelete: Cascade)
 
   @@map("device_integrities")
-}
+} */
 
 model AuditLog {
   id          String  @id @default(uuid()) @db.Uuid
   userId      String? @db.Uuid
-  method      String // POST, PATCH, DELETE
-  path        String // İstek atılan endpoint
-  statusCode  Int // Dönen HTTP durum kodu
-  ip          String? // İstek atanın IP adresi
-  userAgent   String? // Tarayıcı veya istemci bilgisi
-  requestBody String? // İstek gövdesi (JSON string)
+  method      String // HTTP method (POST, PATCH, DELETE, etc.)
+  path        String // Request endpoint path
+  statusCode  Int // Response HTTP status code
+  ip          String? // Client IP address
+  userAgent   String? @db.Text
+  requestBody String? @db.Text
 
   createdAt DateTime @default(now())
 

@@ -7,8 +7,8 @@ import * as crypto from 'crypto';
 dotenv.config();
 
 const pool = new Pool({
-  user: process.env.DB_USER || 'dtso',
-  password: process.env.DB_PASSWORD || 'dtso',
+  user: process.env.DB_USER || 'user',
+  password: process.env.DB_PASSWORD || 'password',
   host: process.env.DB_HOST || 'localhost',
   port: Number(process.env.DB_PORT) || 5432,
   database: process.env.DB_NAME || 'personel_takip_db',

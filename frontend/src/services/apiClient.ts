@@ -32,8 +32,12 @@ export function getStoredToken(): string | null {
     return match[2];
   }
 
+    const matchToken = document.cookie.match(new RegExp("(^| )token=([^;]+)"));
+  if (matchToken) {
+    return matchToken[2];
+  }
   // Fallback to localStorage
-  return localStorage.getItem("token");
+  return localStorage.getItem("access_token") || localStorage.getItem("token");
 }
 
 export function getApiBaseUrl(): string {
@@ -51,9 +55,7 @@ export function getApiBaseUrl(): string {
  *
  * Returns null for non-task endpoints.
  */
-function getQueueMetadata(
-  endpoint: string,
-): {
+function getQueueMetadata(endpoint: string): {
   taskId: string;
   action: QueueAction;
 } | null {
@@ -120,11 +122,7 @@ export async function apiRequest<T = unknown>(
     headers.set("Authorization", `Bearer ${token}`);
   }
 
-  if (
-    !headers.has("Content-Type") &&
-    payload &&
-    typeof payload !== "string"
-  ) {
+  if (!headers.has("Content-Type") && payload && typeof payload !== "string") {
     headers.set("Content-Type", "application/json");
   }
 
@@ -142,22 +140,10 @@ export async function apiRequest<T = unknown>(
   /**
    * 1. Device is already offline.
    */
-  if (
-    typeof navigator !== "undefined" &&
-    !navigator.onLine &&
-    isMutation
-  ) {
-    console.log(
-      "[API] Cihaz çevrimdışı, istek kuyruğa ekleniyor:",
-      url,
-    );
+  if (typeof navigator !== "undefined" && !navigator.onLine && isMutation) {
+    console.log("[API] Cihaz çevrimdışı, istek kuyruğa ekleniyor:", url);
 
-    await queueRequest(
-      url,
-      method as QueueMethod,
-      payload,
-      endpoint,
-    );
+    await queueRequest(url, method as QueueMethod, payload, endpoint);
 
     return {
       success: true,
@@ -168,19 +154,18 @@ export async function apiRequest<T = unknown>(
   /**
    * Build fetch options.
    */
-  const { body: _body, ...restOptions } = options;
+  const { body:body, ...restOptions } = options;
 
   const fetchOptions: RequestInit = {
     ...restOptions,
     method,
     headers,
+    credentials: "include",
   };
 
   if (payload !== undefined && payload !== null) {
     fetchOptions.body =
-      typeof payload === "string"
-        ? payload
-        : JSON.stringify(payload);
+      typeof payload === "string" ? payload : JSON.stringify(payload);
   }
 
   let response: Response;
@@ -199,17 +184,9 @@ export async function apiRequest<T = unknown>(
       throw error;
     }
 
-    console.warn(
-      "[API] Ağ hatası alındı, istek kuyruğa yedekleniyor:",
-      error,
-    );
+    console.warn("[API] Ağ hatası alındı, istek kuyruğa yedekleniyor:", error);
 
-    await queueRequest(
-      url,
-      method as QueueMethod,
-      payload,
-      endpoint,
-    );
+    await queueRequest(url, method as QueueMethod, payload, endpoint);
 
     return {
       success: true,

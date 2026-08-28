@@ -40,7 +40,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <BreadcrumbList>
                 <BreadcrumbItem className="hidden md:block">
                   <BreadcrumbLink href="/dashboard">
-                    DTSO Takip
+                    Temizlik Takip Sistemi
                   </BreadcrumbLink>
                 </BreadcrumbItem>
                 <BreadcrumbSeparator className="hidden md:block" />

@@ -2,48 +2,72 @@ import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { TaskStatus } from '@prisma/client';
 
 @Processor('task-generator-queue')
 @Injectable()
 export class TasksProcessor extends WorkerHost {
   private readonly logger = new Logger(TasksProcessor.name);
 
-  constructor(private prisma: PrismaService) {
+  constructor(private readonly prisma: PrismaService) {
     super();
   }
 
-  async process(job: Job<any, any, string>): Promise<any> {
-    this.logger.log(`[Nightly Job] Running task generation job: ${job.id}`);
+  /**
+   * Processes nightly background jobs to generate daily task instances for all active zones.
+   */
+  async process(
+    job: Job<unknown, unknown, string>,
+  ): Promise<{ success: boolean; createdCount: number; generatedAt: Date }> {
+    this.logger.log(`[Nightly Job] Running task generation job ID: ${job.id}`);
 
     try {
-      // Şemada TaskTemplate olmadığı için sistemdeki tüm Zone'ları alıp her biri için task oluşturabiliriz
-      const zones = await this.prisma.zone.findMany();
+      const zones = await this.prisma.zone.findMany({
+        select: { id: true },
+      });
 
-      this.logger.log(`[Nightly Job] Found ${zones.length} zones to generate task instances.`);
+      this.logger.log(
+        `[Nightly Job] Found ${zones.length} zones to generate task instances.`,
+      );
 
       const now = new Date();
-      let createdCount = 0;
 
-      for (const zone of zones) {
-        try {
-          await this.prisma.taskInstance.create({
-            data: {
-              zoneId: zone.id,
-              status: 'SCHEDULED',
-              scheduledFor: now,
-              checklist: [], // Gerekirse varsayılan maddeler eklenebilir
-            },
-          });
-          createdCount++;
-        } catch (zoneError) {
-          this.logger.error(`Failed to generate task instance for zone ${zone.id}: ${zoneError.message}`);
-        }
+      if (zones.length === 0) {
+        return { success: true, createdCount: 0, generatedAt: now };
       }
 
-      this.logger.log(`[Nightly Job] Successfully generated ${createdCount} TaskInstances.`);
-      return { success: true, createdCount, generatedAt: now };
+      // Prepare payload for bulk creation
+      const taskInstancesData = zones.map((zone) => ({
+        zoneId: zone.id,
+        status: TaskStatus.SCHEDULED,
+        scheduledFor: now,
+        checklist: [],
+      }));
+
+      // Perform bulk insert for optimal database performance
+      const result = await this.prisma.taskInstance.createMany({
+        data: taskInstancesData,
+        skipDuplicates: true,
+      });
+
+      this.logger.log(
+        `[Nightly Job] Successfully generated ${result.count} TaskInstances via bulk insert.`,
+      );
+
+      return {
+        success: true,
+        createdCount: result.count,
+        generatedAt: now,
+      };
     } catch (error) {
-      this.logger.error(`[Nightly Job] Failed to generate tasks: ${error.message}`, error.stack);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
+
+      this.logger.error(
+        `[Nightly Job] Failed to generate tasks: ${errorMessage}`,
+        errorStack,
+      );
       throw error;
     }
   }

@@ -52,15 +52,16 @@ export class ScansService {
                     },
                   }
                 : undefined,
-              deviceIntegrity: scan.deviceIntegrity
+              /* deviceIntegrity: scan.deviceIntegrity
                 ? {
                     create: {
                       isRooted: scan.deviceIntegrity.isRooted ?? false,
                       isEmulator: scan.deviceIntegrity.isEmulator ?? false,
-                      isMockLocation: scan.deviceIntegrity.isMockLocation ?? false,
+                      isMockLocation:
+                        scan.deviceIntegrity.isMockLocation ?? false,
                     },
                   }
-                : undefined,
+                : undefined,*/
             },
           }),
         ),
@@ -97,12 +98,12 @@ export class ScansService {
                 select: {
                   name: true,
                   code: true,
-                }
-              }
-            }
+                },
+              },
+            },
           },
           location: true,
-          deviceIntegrity: true,
+          //deviceIntegrity: true,
         },
       }),
       this.prisma.scanEvent.count(),
@@ -127,7 +128,9 @@ export class ScansService {
           });
 
           if (lastCheckIn) {
-            const diffMs = scan.clientScannedAt.getTime() - lastCheckIn.clientScannedAt.getTime();
+            const diffMs =
+              scan.clientScannedAt.getTime() -
+              lastCheckIn.clientScannedAt.getTime();
             durationMinutes = Math.round(diffMs / 60000);
           }
         }
@@ -136,7 +139,7 @@ export class ScansService {
           ...scan,
           durationMinutes,
         };
-      })
+      }),
     );
 
     return {

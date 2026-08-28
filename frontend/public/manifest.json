@@ -1,7 +1,7 @@
 {
-  "name": "DTSO Temizlik Takip Sistemi",
-  "short_name": "DTSO Temizlik",
-  "description": "Diyarbakır Ticaret ve Sanayi Odası Temizlik Takip Sistemi",
+  "name": "Temizlik Takip Sistemi",
+  "short_name": "TTS",
+  "description": "Temizlik Takip Sistemi",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

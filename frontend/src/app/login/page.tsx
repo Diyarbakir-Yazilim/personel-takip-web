@@ -5,16 +5,17 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { ClipboardList, Loader2, AlertCircle } from 'lucide-react';
+import { Droplet, Loader2, AlertCircle, Lock, Mail, Eye, EyeOff } from 'lucide-react';
 
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get('callbackUrl') || '/dashboard';
+  
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -24,24 +25,12 @@ function LoginContent() {
     setIsLoading(true);
 
     try {
-      let deviceId = 'web-client';
-      try {
-        if (typeof window !== 'undefined') {
-          const rawId = `${navigator.userAgent}-${window.screen?.width || 0}x${window.screen?.height || 0}`;
-          // btoa safely
-          deviceId = btoa(unescape(encodeURIComponent(rawId))).slice(0, 64);
-        }
-      } catch (e) {
-        deviceId = 'fallback-client-' + Date.now();
-      }
-
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: email.trim(),
           password: password.trim(),
-          deviceId
         }),
       });
 
@@ -51,17 +40,15 @@ function LoginContent() {
         throw new Error(data?.message || 'Giriş başarısız.');
       }
 
-      // Token'ı cookie'ye kaydet (middleware okuyabilsin diye)
-      const token = data?.access_token || data?.token;
+      const accessToken = data?.access_token
       const role = data?.user?.role || data?.role;
 
-      if (token) {
-        document.cookie = `token=${token}; path=/; max-age=${60 * 60 * 24 * 7}`;
+      if (accessToken) {
+        document.cookie = `access_token=${accessToken}; path=/; max-age=${60 * 60 * 24 * 7}`;
         if (role) {
           document.cookie = `role=${role}; path=/; max-age=${60 * 60 * 24 * 7}`;
         }
-        // Ayrıca localStorage'a da yaz (StaffDailyTasks için)
-        localStorage.setItem('token', token);
+        localStorage.setItem('access_token', accessToken);
       }
 
       router.push(callbackUrl);
@@ -73,82 +60,84 @@ function LoginContent() {
   };
 
   return (
-    <div className="w-full max-w-md space-y-6">
-      {/* Logo / Başlık */}
-      <div className="flex flex-col items-center gap-3 text-center">
-        <div className="flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-          <ClipboardList className="size-7" />
+    <div className="w-full max-w-md mx-auto p-8 rounded-3xl bg-white/70 dark:bg-zinc-950/70 backdrop-blur-xl border border-white/40 dark:border-zinc-800/50 shadow-[0_8px_32px_0_rgba(0,0,0,0.2)] transition-all">
+      <div className="flex flex-col items-center text-center mb-8">
+        <div className="size-16 rounded-2xl bg-gradient-to-tr from-blue-600 to-cyan-400 flex items-center justify-center text-white shadow-lg shadow-cyan-500/30 mb-4 transform hover:scale-105 transition-transform duration-300">
+          <Droplet className="size-8 fill-white/20 animate-pulse" />
         </div>
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">DTSO Temizlik Takip</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Devam etmek için hesabınıza giriş yapın
-          </p>
-        </div>
+        <h1 className="text-2xl font-extrabold tracking-tight text-zinc-900 dark:text-white">
+          Temizlik Takip Sistemi
+        </h1>
       </div>
 
-      {/* Form */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Giriş Yap</CardTitle>
-          <CardDescription>E-posta ve şifrenizi girin</CardDescription>
-        </CardHeader>
+      <form onSubmit={handleSubmit} className="space-y-5">
+        {error && (
+          <Alert variant="destructive" className="rounded-xl border-red-200 bg-red-50 text-red-900">
+            <AlertCircle className="size-4" />
+            <AlertDescription className="text-xs font-medium">{error}</AlertDescription>
+          </Alert>
+        )}
 
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {error && (
-              <Alert variant="destructive">
-                <AlertCircle className="size-4" />
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
-
-            <div className="space-y-2">
-              <Label htmlFor="email">E-posta</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="ornek@dtso.org.tr"
-                autoComplete="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={isLoading}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="password">Şifre</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="••••••••"
-                autoComplete="current-password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={isLoading}
-              />
-            </div>
-
-            <Button
-              id="login-submit"
-              type="submit"
-              className="w-full"
+        <div className="space-y-1.5">
+          <Label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 ml-1">E-posta Adresi</Label>
+          <div className="relative">
+            <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-zinc-400" />
+            <Input
+              id="email"
+              type="email"
+              placeholder="ornek@personel.com"
+              autoComplete="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               disabled={isLoading}
+              className="pl-10 h-12 rounded-xl bg-white/50 dark:bg-zinc-900/50 border-zinc-200/80 dark:border-zinc-800 focus:ring-2 focus:ring-cyan-500 transition-all text-sm"
+            />
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 ml-1">Şifre</Label>
+          <div className="relative">
+            <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-zinc-400" />
+            <Input
+              id="password"
+              type={showPassword ? 'text' : 'password'}
+              placeholder="••••••••"
+              autoComplete="current-password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              disabled={isLoading}
+              className="pl-10 pr-10 h-12 rounded-xl bg-white/50 dark:bg-zinc-900/50 border-zinc-200/80 dark:border-zinc-800 focus:ring-2 focus:ring-cyan-500 transition-all text-sm"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors focus:outline-none"
+              tabIndex={-1}
             >
-              {isLoading ? (
-                <>
-                  <Loader2 className="mr-2 size-4 animate-spin" />
-                  Giriş yapılıyor...
-                </>
-              ) : (
-                'Giriş Yap'
-              )}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+              {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+            </button>
+          </div>
+        </div>
+
+        <Button
+          id="login-submit"
+          type="submit"
+          className="w-full h-12 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-700 hover:to-cyan-600 text-white font-semibold shadow-lg shadow-cyan-500/25 transition-all duration-300 transform active:scale-[0.98]"
+          disabled={isLoading}
+        >
+          {isLoading ? (
+            <>
+              <Loader2 className="mr-2 size-5 animate-spin" />
+              Giriş yapılıyor...
+            </>
+          ) : (
+            'Sisteme Giriş Yap'
+          )}
+        </Button>
+      </form>
     </div>
   );
 }
@@ -162,19 +151,28 @@ export default function LoginPage() {
 
   if (!mounted) {
     return (
-      <main className="min-h-screen bg-background flex items-center justify-center p-4">
-        <div className="flex items-center gap-2">
-          <Loader2 className="size-6 animate-spin text-primary" />
-        </div>
+      <main className="min-h-screen bg-zinc-950 flex items-center justify-center">
+        <Loader2 className="size-8 animate-spin text-cyan-500" />
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-background flex items-center justify-center p-4">
-      <Suspense fallback={<Loader2 className="size-6 animate-spin text-primary" />}>
-        <LoginContent />
-      </Suspense>
+    <main 
+      className="relative min-h-screen flex items-center justify-center p-4 bg-cover bg-center bg-no-repeat"
+      style={{ backgroundImage: `url('/foam-drops1.jpg')` }}
+    >
+      <div className="absolute inset-0 bg-gradient-to-tr from-cyan-950/40 via-black/30 to-blue-900/40 backdrop-blur-[2px]" />
+
+      <div className="relative z-10 w-full flex justify-center">
+        <Suspense fallback={
+          <div className="flex justify-center p-12">
+            <Loader2 className="size-8 animate-spin text-cyan-500" />
+          </div>
+        }>
+          <LoginContent />
+        </Suspense>
+      </div>
     </main>
   );
 }

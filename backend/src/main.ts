@@ -1,31 +1,42 @@
 import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
-import { RedisIoAdapter } from './events/redis-io.adapter';
-import { ValidationPipe } from '@nestjs/common';
-import { SwaggerModule } from '@nestjs/swagger';
+import { ValidationPipe, Logger } from '@nestjs/common';
+import { SwaggerModule, OpenAPIObject } from '@nestjs/swagger';
+import cookieParser from 'cookie-parser';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as YAML from 'yaml';
-import { AuditInterceptor } from './common/interceptors/audit.interceptor';
-import { PrismaService } from './prisma/prisma.service';
 
+import { AppModule } from './app.module';
+import { RedisIoAdapter } from './events/redis-io.adapter';
 
-async function bootstrap() {
+async function bootstrap(): Promise<void> {
+  const logger = new Logger('Bootstrap');
   const app = await NestFactory.create(AppModule);
-  const prismaService = app.get(PrismaService);
-  app.useGlobalInterceptors(new AuditInterceptor(prismaService));
-  
+
+  // CookieParser middleware'ini ekliyoruz (req.cookies okuyabilmek için şart)
+  app.use(cookieParser());
+
+  // Set global API route prefix
   app.setGlobalPrefix('v1');
-  
+
+  // Configure Redis WebSocket adapter
   const redisIoAdapter = new RedisIoAdapter(app);
-  await redisIoAdapter.connectToRedis();
+  redisIoAdapter.connectToRedis();
   app.useWebSocketAdapter(redisIoAdapter);
+
+  // Configure CORS security policies
+  // Credentials (cookie) kullanıldığı için origin '*' olamaz, spesifik adres olmalıdır.
+  const allowedOrigins = process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(',')
+    : ['http://localhost:3000', 'http://localhost:3001'];
+
   app.enableCors({
-    origin: '*',
+    origin: allowedOrigins,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
   });
 
+  // Enable global request validation and transformation
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -34,27 +45,38 @@ async function bootstrap() {
     }),
   );
 
+  // Resolve OpenAPI documentation file path
   let yamlFilePath = path.join(process.cwd(), 'openapi.yaml');
   if (!fs.existsSync(yamlFilePath)) {
     yamlFilePath = path.join(process.cwd(), 'src', 'docs', 'openapi.yaml');
   }
 
+  // Setup Swagger API documentation if definition exists
   if (fs.existsSync(yamlFilePath)) {
     const fileContent = fs.readFileSync(yamlFilePath, 'utf8');
-    const swaggerDocument = YAML.parse(fileContent);
+    const swaggerDocument = YAML.parse(fileContent) as OpenAPIObject;
 
     SwaggerModule.setup('docs', app, swaggerDocument, {
-      useGlobalPrefix: false, 
+      useGlobalPrefix: false,
     });
-    console.log(`📚 Swagger Documentation Uploaded: ${yamlFilePath}`);
+    logger.log(`Swagger Documentation loaded from: ${yamlFilePath}`);
   } else {
-    console.error(`❌ openapi.yaml file not found! Searched location: ${yamlFilePath}`);
+    logger.error(
+      `openapi.yaml file not found! Searched location: ${yamlFilePath}`,
+    );
   }
 
-  const port = process.env.PORT ?? 5000;
+  // Start HTTP server
+  const port = Number(process.env.PORT) || 5000;
   await app.listen(port);
-  console.log(`🚀 Server is running at http://localhost:${port}/v1`);
-  console.log(`📚 Swagger: http://localhost:${port}/docs`);
+
+  logger.log(`🚀 Server is running at http://localhost:${port}/v1`);
+  logger.log(`📚 Swagger documentation at http://localhost:${port}/docs`);
 }
 
-bootstrap();
+// Execute bootstrap process with explicit error handling
+bootstrap().catch((err: unknown) => {
+  const logger = new Logger('BootstrapException');
+  logger.error('Failed to start application during bootstrap:', err);
+  process.exit(1);
+});

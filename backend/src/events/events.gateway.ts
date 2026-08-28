@@ -7,7 +7,13 @@ import {
   OnGatewayConnection,
   OnGatewayDisconnect,
 } from '@nestjs/websockets';
+import { Logger } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
+
+interface ZoneUpdatePayload {
+  zoneId: string;
+  status: 'FREE' | 'BUSY' | 'ALERT';
+}
 
 @WebSocketGateway({
   cors: {
@@ -17,26 +23,25 @@ import { Server, Socket } from 'socket.io';
 export class EventsGateway
   implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
 {
-  @WebSocketServer()
-  server: Server;
+  private readonly logger = new Logger(EventsGateway.name);
 
-  afterInit(server: Server) {
-    console.log('WebSocket Gateway initialized');
+  @WebSocketServer()
+  server!: Server;
+
+  afterInit() {
+    this.logger.log('WebSocket Gateway initialized');
   }
 
   handleConnection(client: Socket) {
-    console.log(`Client connected: ${client.id}`);
+    this.logger.log(`Client connected: ${client.id}`);
   }
 
   handleDisconnect(client: Socket) {
-    console.log(`Client disconnected: ${client.id}`);
+    this.logger.log(`Client disconnected: ${client.id}`);
   }
 
-  // Kat planı bölge durumu güncellendiğinde frontend'e yayın yapma
   @SubscribeMessage('updateZoneStatus')
-  handleZoneUpdate(
-    @MessageBody() data: { zoneId: string; status: 'FREE' | 'BUSY' | 'ALERT' },
-  ) {
+  handleZoneUpdate(@MessageBody() data: ZoneUpdatePayload): ZoneUpdatePayload {
     this.server.emit('zoneStatusUpdate', data);
     return data;
   }

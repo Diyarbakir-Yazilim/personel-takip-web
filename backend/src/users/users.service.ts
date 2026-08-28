@@ -1,12 +1,17 @@
-import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { hash } from '@node-rs/argon2';
+import { Prisma, UserRole } from '@prisma/client';
 
 @Injectable()
 export class UsersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async findAll() {
     return this.prisma.user.findMany({
@@ -36,7 +41,7 @@ export class UsersService {
     });
 
     if (!user) {
-      throw new NotFoundException('Kullanıcı bulunamadı');
+      throw new NotFoundException('User not found');
     }
 
     return user;
@@ -48,7 +53,7 @@ export class UsersService {
     });
 
     if (existingUser) {
-      throw new ConflictException('Bu e-posta adresi zaten kullanımda');
+      throw new ConflictException('This email address is already in use');
     }
 
     const hashedPassword = await hash(dto.password);
@@ -58,7 +63,7 @@ export class UsersService {
         email: dto.email,
         password: hashedPassword,
         fullName: dto.fullName,
-        role: dto.role || 'STAFF',
+        role: dto.role || UserRole.STAFF,
       },
       select: {
         id: true,
@@ -75,7 +80,7 @@ export class UsersService {
   async update(id: string, dto: UpdateUserDto) {
     const user = await this.prisma.user.findUnique({ where: { id } });
     if (!user) {
-      throw new NotFoundException('Kullanıcı bulunamadı');
+      throw new NotFoundException('User not found');
     }
 
     if (dto.email && dto.email !== user.email) {
@@ -83,15 +88,18 @@ export class UsersService {
         where: { email: dto.email },
       });
       if (existingUser) {
-        throw new ConflictException('Bu e-posta adresi zaten kullanımda');
+        throw new ConflictException('This email address is already in use');
       }
     }
 
-    const updateData: any = { ...dto };
+    const hashedPassword = dto.password ? await hash(dto.password) : undefined;
 
-    if (dto.password) {
-      updateData.password = await hash(dto.password);
-    }
+    const updateData: Prisma.UserUpdateInput = {
+      ...(dto.email && { email: dto.email }),
+      ...(dto.fullName && { fullName: dto.fullName }),
+      ...(dto.role && { role: dto.role }),
+      ...(hashedPassword && { password: hashedPassword }),
+    };
 
     return this.prisma.user.update({
       where: { id },
@@ -109,10 +117,10 @@ export class UsersService {
   async remove(id: string) {
     const user = await this.prisma.user.findUnique({ where: { id } });
     if (!user) {
-      throw new NotFoundException('Kullanıcı bulunamadı');
+      throw new NotFoundException('User not found');
     }
 
     await this.prisma.user.delete({ where: { id } });
-    return { success: true, message: 'Kullanıcı silindi' };
+    return { success: true, message: 'User successfully deleted' };
   }
 }

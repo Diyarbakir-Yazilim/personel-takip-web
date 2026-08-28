@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateBuildingDto } from './dto/create-building.dto';
 import { CreateFloorDto } from './dto/create-floor.dto';
@@ -20,13 +25,11 @@ export class OrganizationsService {
 
   async findAllBuildings() {
     return this.prisma.building.findMany({
-      include: {
-        floors: {
-          include: {
-            zones: true,
-          },
-          orderBy: { level: 'asc' },
-        },
+      select: {
+        id: true,
+        name: true,
+        createdAt: true,
+        _count: { select: { floors: true } },
       },
       orderBy: { createdAt: 'asc' },
     });
@@ -46,23 +49,45 @@ export class OrganizationsService {
     });
 
     if (!building) {
-      throw new NotFoundException(`Bina bulunamadi: ${id}`);
+      throw new NotFoundException(`Bina bulunamadı: ${id}`);
     }
 
     return building;
   }
 
   async updateBuilding(id: string, dto: Partial<CreateBuildingDto>) {
-    await this.findOneBuilding(id);
-    return this.prisma.building.update({
-      where: { id },
-      data: dto,
-    });
+    try {
+      return await this.prisma.building.update({
+        where: { id },
+        data: dto,
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2025'
+      ) {
+        throw new NotFoundException(`Bina bulunamadı: ${id}`);
+      }
+      throw error;
+    }
   }
 
   async deleteBuilding(id: string) {
-    await this.findOneBuilding(id);
-    return this.prisma.building.delete({ where: { id } });
+    try {
+      return await this.prisma.building.delete({ where: { id } });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        if (error.code === 'P2025') {
+          throw new NotFoundException(`Bina bulunamadı: ${id}`);
+        }
+        if (error.code === 'P2003') {
+          throw new ConflictException(
+            'Bu binaya bağlı katlar veya bölgeler var. Önce bağlı alt öğeleri silmelisiniz.',
+          );
+        }
+      }
+      throw error;
+    }
   }
 
   // ==========================================
@@ -100,23 +125,45 @@ export class OrganizationsService {
     });
 
     if (!floor) {
-      throw new NotFoundException(`Kat bulunamadi: ${id}`);
+      throw new NotFoundException(`Kat bulunamadı: ${id}`);
     }
 
     return floor;
   }
 
   async updateFloor(id: string, dto: Partial<CreateFloorDto>) {
-    await this.findOneFloor(id);
-    return this.prisma.floor.update({
-      where: { id },
-      data: dto,
-    });
+    try {
+      return await this.prisma.floor.update({
+        where: { id },
+        data: dto,
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2025'
+      ) {
+        throw new NotFoundException(`Kat bulunamadı: ${id}`);
+      }
+      throw error;
+    }
   }
 
   async deleteFloor(id: string) {
-    await this.findOneFloor(id);
-    return this.prisma.floor.delete({ where: { id } });
+    try {
+      return await this.prisma.floor.delete({ where: { id } });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        if (error.code === 'P2025') {
+          throw new NotFoundException(`Kat bulunamadı: ${id}`);
+        }
+        if (error.code === 'P2003') {
+          throw new ConflictException(
+            'Bu kata bağlı bölgeler var. Önce bağlı bölgeleri silmelisiniz.',
+          );
+        }
+      }
+      throw error;
+    }
   }
 
   // ==========================================
@@ -128,23 +175,27 @@ export class OrganizationsService {
       await this.findOneFloor(dto.floorId);
     }
 
-    const existing = await this.prisma.zone.findUnique({
-      where: { code: dto.code },
-    });
-
-    if (existing) {
-      throw new ConflictException(`Bu kod zaten kullanimda: ${dto.code}`);
+    try {
+      return await this.prisma.zone.create({
+        data: {
+          code: dto.code,
+          name: dto.name,
+          floorId: dto.floorId ?? null,
+          minDurationSec: dto.minDurationSec ?? null,
+          maxDurationSec: dto.maxDurationSec ?? null,
+        },
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException(
+          `Bu bölge kodu zaten kullanımda: ${dto.code}`,
+        );
+      }
+      throw error;
     }
-
-    return this.prisma.zone.create({
-      data: {
-        code: dto.code,
-        name: dto.name,
-        floorId: dto.floorId ?? null,
-        minDurationSec: dto.minDurationSec ?? null,
-        maxDurationSec: dto.maxDurationSec ?? null,
-      },
-    });
   }
 
   async findAllZones(floorId?: string) {
@@ -170,33 +221,44 @@ export class OrganizationsService {
     });
 
     if (!zone) {
-      throw new NotFoundException(`Bolge bulunamadi: ${id}`);
+      throw new NotFoundException(`Bölge bulunamadı: ${id}`);
     }
 
     return zone;
   }
 
   async updateZone(id: string, dto: Partial<CreateZoneDto>) {
-    await this.findOneZone(id);
-
-    // code güncelleniyorsa unique kontrolü yap
-    if (dto.code) {
-      const existing = await this.prisma.zone.findUnique({
-        where: { code: dto.code },
+    try {
+      return await this.prisma.zone.update({
+        where: { id },
+        data: dto,
       });
-      if (existing && existing.id !== id) {
-        throw new ConflictException(`Bu kod zaten kullanimda: ${dto.code}`);
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        if (error.code === 'P2025') {
+          throw new NotFoundException(`Bölge bulunamadı: ${id}`);
+        }
+        if (error.code === 'P2002') {
+          throw new ConflictException(
+            `Bu bölge kodu zaten kullanımda: ${dto.code}`,
+          );
+        }
       }
+      throw error;
     }
-
-    return this.prisma.zone.update({
-      where: { id },
-      data: dto,
-    });
   }
 
   async deleteZone(id: string) {
-    await this.findOneZone(id);
-    return this.prisma.zone.delete({ where: { id } });
+    try {
+      return await this.prisma.zone.delete({ where: { id } });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2025'
+      ) {
+        throw new NotFoundException(`Bölge bulunamadı: ${id}`);
+      }
+      throw error;
+    }
   }
 }

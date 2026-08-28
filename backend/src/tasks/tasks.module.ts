@@ -14,11 +14,7 @@ import { PrismaModule } from '../prisma/prisma.module';
     PrismaModule,
   ],
   controllers: [TasksController],
-  providers: [
-    TasksService,
-    TaskSchedulerService,
-    TasksProcessor,
-  ],
+  providers: [TasksService, TaskSchedulerService, TasksProcessor],
   exports: [TasksService],
 })
 export class TasksModule {}

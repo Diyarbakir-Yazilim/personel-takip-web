@@ -93,7 +93,7 @@ export function UserDialog({ user, isOpen, onClose, onSuccess }: UserDialogProps
               type="email"
               value={email} 
               onChange={(e) => setEmail(e.target.value)} 
-              placeholder="Örn. personel@dtso.org.tr" 
+              placeholder="Örn. personel@example.org.tr" 
             />
           </div>
 

@@ -101,12 +101,23 @@ export function AppSidebar() {
     return navItems.filter((item) => allowedHrefs.includes(item.href));
   }, [role]);
 
-  const handleLogout = () => {
-    document.cookie = 'token=; path=/; max-age=0';
-    document.cookie = 'role=; path=/; max-age=0';
-    localStorage.removeItem('token');
+  const handleLogout = async () => {
+  try {
+    const res = await fetch('/api/auth/logout', {
+      method: 'POST',
+    });
+
+    if (!res.ok) {
+      console.error('Logout failed on BFF');
+    }
+  } catch (error) {
+    console.error('Logout error:', error);
+  } finally {
+    // Her durumda kullanıcıyı login sayfasına yönlendir ve temizlik yap
     router.push('/login');
-  };
+    router.refresh(); // Next.js cache'ini tazelemek için
+  }
+};
 
   return (
     <Sidebar variant="inset">
@@ -116,8 +127,8 @@ export function AppSidebar() {
             <ClipboardList className="size-4" />
           </div>
           <div className="flex flex-col">
-            <span className="text-sm font-bold leading-tight">DTSO Temizlik</span>
-            <span className="text-xs font-medium text-muted-foreground">Takip Sistemi</span>
+            <span className="text-sm font-bold leading-tight">Temizlik</span>
+            <span className="text-sm font-bold leading-tight">Takip Sistemi</span>
           </div>
         </div>
       </SidebarHeader>

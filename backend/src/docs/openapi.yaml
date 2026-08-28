@@ -1,10 +1,10 @@
 openapi: 3.2.0
 info:
-  title: DTSO Temizlik Takip Sistemi (TTS) API
+  title: Temizlik Takip Sistemi (TTS) API
   version: 1.0.0
-  description: DTSO-TTS Mobil, Kiosk ve Yönetim Paneli için API Sözleşmesi
+  description: Temizlik Takip Sistemi (TTS) Mobil, Kiosk ve Yönetim Paneli için API Sözleşmesi
 servers:
-  - url: https://tts-api.dtso.org.tr/v1
+  - url: https://tts-api.tts.org.tr/v1
     description: Production API Sunucusu
 
 paths:
@@ -45,7 +45,7 @@ paths:
           content:
             application/problem+json:
               example:
-                type: "https://api.dtso.org.tr/errors/replay-detected"
+                type: "https://api.tts.org.tr/errors/replay-detected"
                 title: "Bu kod daha önce kullanılmış"
                 status: 409
                 detail: "Okutulan doğrulama kodu 42 saniye önce işlenmiş."
