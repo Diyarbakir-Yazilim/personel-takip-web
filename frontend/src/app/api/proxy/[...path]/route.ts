@@ -4,10 +4,10 @@ async function handleProxy(request: NextRequest) {
   // Extract target route path (e.g. /api/proxy/auth/profile -> auth/profile)
   const path = request.nextUrl.pathname.replace('/api/proxy/', '');
   const backendUrl = process.env.BACKEND_API_URL || 'http://127.0.0.1:5000/v1';
-const targetUrl = `${backendUrl}/${path}`;
+  const targetUrl = `${backendUrl}/${path}`;
 
-  // Retrieve token from HttpOnly cookie
-  const token = request.cookies.get('token')?.value;
+  // Retrieve token from HttpOnly cookie (çerez adını access_token yaptık)
+  const token = request.cookies.get('access_token')?.value;
 
   const headers = new Headers(request.headers);
   headers.delete('host');
@@ -25,12 +25,23 @@ const targetUrl = `${backendUrl}/${path}`;
     });
 
     const data = await backendRes.text();
-    return new NextResponse(data, {
+    
+    const response = new NextResponse(data, {
       status: backendRes.status,
       headers: {
         'Content-Type': backendRes.headers.get('Content-Type') || 'application/json',
       },
     });
+
+    // Backend'den gelen Set-Cookie başlıklarını da tarayıcıya iletelim
+    const rawSetCookies = backendRes.headers.getSetCookie();
+    if (rawSetCookies && rawSetCookies.length > 0) {
+      rawSetCookies.forEach((cookieStr) => {
+        response.headers.append('set-cookie', cookieStr);
+      });
+    }
+
+    return response;
   } catch (error) {
     console.error('BFF Proxy Error for path:', path, error);
     return NextResponse.json(

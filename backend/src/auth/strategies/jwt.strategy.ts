@@ -10,9 +10,11 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       jwtFromRequest: ExtractJwt.fromExtractors([
         // 1. Önce çerezden (cookie) 'access_token' değerini okumayı dene
         (request: Request) => {
-          let token = null;
+          let token: string | null = null;
           if (request && request.cookies) {
-            token = request.cookies['access_token'];
+            token =
+              (request.cookies as Record<string, string>)['access_token'] ||
+              null;
           }
           return token;
         },
@@ -24,10 +26,20 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     });
   }
 
-  validate(payload: { sub: string; email: string; role?: string }) {
+  validate(payload: {
+    sub: string;
+    email: string;
+    role?: string;
+    fullName?: string;
+  }) {
     if (!payload) {
       throw new UnauthorizedException('Geçersiz token');
     }
-    return { id: payload.sub, email: payload.email, role: payload.role };
+    return {
+      id: payload.sub,
+      email: payload.email,
+      role: payload.role,
+      fullName: payload.fullName,
+    };
   }
 }

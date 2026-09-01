@@ -45,6 +45,11 @@ interface Zone {
   status?: 'FREE' | 'BUSY' | 'ALERT';
 }
 
+interface ZonesApiResponse {
+  success: boolean;
+  data: Zone[] | { data: Zone[] };
+}
+
 const statusColors = {
   FREE: { 
     bg: 'bg-emerald-50/80 dark:bg-emerald-950/20', 
@@ -95,10 +100,19 @@ export default function DashboardPage() {
         apiRequest('/organizations/zones')
       ]);
 
-      if (statsRes.success) setStats(statsRes.data as DashboardStats);
-      if (zonesRes.success) {
-        const data = zonesRes.data as any;
-        setZones(Array.isArray(data) ? data : data.data || []);
+      if (statsRes.success && statsRes.data) {
+        setStats(statsRes.data as DashboardStats);
+      }
+      
+      if (zonesRes.success && zonesRes.data) {
+        const resData = zonesRes.data as ZonesApiResponse['data'];
+        if (Array.isArray(resData)) {
+          setZones(resData);
+        } else if (resData && typeof resData === 'object' && 'data' in resData && Array.isArray(resData.data)) {
+          setZones(resData.data);
+        } else {
+          setZones([]);
+        }
       }
     } catch (error) {
       console.error('Veriler yüklenemedi:', error);
@@ -148,7 +162,7 @@ export default function DashboardPage() {
         </div>
 
         <button
-          onClick={loadData}
+          onClick={() => void loadData()}
           disabled={isLoading}
           className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm rounded-xl text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-all text-slate-700 dark:text-slate-200 active:scale-95 disabled:opacity-50"
         >
@@ -360,7 +374,7 @@ export default function DashboardPage() {
                           </div>
                         );
                       })}
-                    </div>
+                  </div>
                   )}
                 </CardContent>
               </Card>

@@ -34,22 +34,22 @@ export class CreateZoneDto {
   name!: string;
 
   @ApiPropertyOptional({
-    description: 'Minimum geçerli temizlik süresi (saniye)',
-    example: 180,
+    description: 'Minimum geçerli temizlik süresi (dakika)',
+    example: 5,
     minimum: 0,
   })
   @IsInt()
   @Min(0)
   @IsOptional()
-  minDurationSec?: number;
+  minDurationMin?: number;
 
   @ApiPropertyOptional({
-    description: 'Maksimum beklenen temizlik süresi (saniye)',
-    example: 1200,
+    description: 'Maksimum beklenen temizlik süresi (dakika)',
+    example: 20,
     minimum: 0,
   })
   @IsInt()
   @Min(0)
   @IsOptional()
-  maxDurationSec?: number;
+  maxDurationMin?: number;
 }

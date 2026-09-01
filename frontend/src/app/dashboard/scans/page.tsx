@@ -69,13 +69,6 @@ interface ScanEvent {
   };
 }
 
-/**
- * Kademeli ve Dinamik Tarih Formatı
- * - Bugün için: "Bugün, 05:39"
- * - Dün için: "Dün, 14:20"
- * - 1 Haftaya kadar olan geçmiş için: "Pazartesi, 09:15"
- * - 1 Haftadan eski tarihler için: "20 Ağu 2026, 05:35"
- */
 function formatSmartDate(dateString: string): string {
   try {
     const date = parseISO(dateString);
@@ -102,9 +95,6 @@ function formatSmartDate(dateString: string): string {
   }
 }
 
-/**
- * İsimden baş harfleri türetme (Örn: "Ali Kaya" -> "AK")
- */
 function getInitials(name?: string): string {
   if (!name) return '??';
   const parts = name.trim().split(/\s+/);
@@ -114,9 +104,6 @@ function getInitials(name?: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-/**
- * İsim hash'ine göre belirlenen modern renk paleti
- */
 const AVATAR_COLOR_PALETTES = [
   'bg-blue-500/15 text-blue-700 dark:bg-blue-500/25 dark:text-blue-300 border-blue-200 dark:border-blue-800',
   'bg-emerald-500/15 text-emerald-700 dark:bg-emerald-500/25 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800',
@@ -138,9 +125,6 @@ function getAvatarColorClass(name?: string): string {
   return AVATAR_COLOR_PALETTES[index];
 }
 
-/**
- * Dakikayı "1 sa 45 dk" veya "45 dk" formatına dönüştürme
- */
 function formatDuration(minutes?: number | null): string | null {
   if (minutes === null || minutes === undefined) return null;
   if (minutes < 1) return '< 1 dk';
@@ -159,7 +143,6 @@ export default function ScansPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState<'ALL' | 'CHECK_IN' | 'CHECK_OUT'>('ALL');
 
-  // Personel Detay Paneli (Drawer) State
   const [selectedPersonnel, setSelectedPersonnel] = useState<PersonnelUser | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
@@ -188,7 +171,6 @@ export default function ScansPage() {
     void fetchScans();
   }, []);
 
-  // Filtrelenmiş genel tarama listesi
   const filteredScans = useMemo(() => {
     return scans.filter((scan) => {
       if (selectedFilter !== 'ALL' && scan.resolvedAction !== selectedFilter) {
@@ -205,13 +187,11 @@ export default function ScansPage() {
     });
   }, [scans, selectedFilter, searchQuery]);
 
-  // Seçili personele ait tüm hareketler
   const selectedPersonnelScans = useMemo(() => {
     if (!selectedPersonnel) return [];
     return scans.filter((s) => s.user?.id === selectedPersonnel.id);
   }, [scans, selectedPersonnel]);
 
-  // Seçili personelin özet istatistikleri
   const selectedPersonnelStats = useMemo(() => {
     const total = selectedPersonnelScans.length;
     const checkIns = selectedPersonnelScans.filter((s) => s.resolvedAction === 'CHECK_IN').length;
@@ -221,7 +201,6 @@ export default function ScansPage() {
     return { total, checkIns, checkOuts, totalDuration };
   }, [selectedPersonnelScans]);
 
-  // Genel Özet İstatistikler
   const stats = useMemo(() => {
     const total = scans.length;
     const checkIns = scans.filter((s) => s.resolvedAction === 'CHECK_IN').length;
@@ -237,13 +216,11 @@ export default function ScansPage() {
     return { total, checkIns, checkOuts, avgDuration };
   }, [scans]);
 
-  // Personel Detay Panelini Açma
   const handleOpenPersonnelDrawer = (user: PersonnelUser) => {
     setSelectedPersonnel(user);
     setIsDrawerOpen(true);
   };
 
-  // Seçili Personelin Verilerini Excel Olarak İndirme (Export)
   const handleExportPersonnelToExcel = () => {
     if (!selectedPersonnel || selectedPersonnelScans.length === 0) return;
 
@@ -300,7 +277,6 @@ export default function ScansPage() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-10">
-      {/* Üst Başlık & Aksiyon Alanı */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <div className="flex size-11 items-center justify-center rounded-2xl bg-gradient-to-tr from-primary/20 via-primary/10 to-transparent text-primary shadow-xs ring-1 ring-primary/20">
@@ -328,7 +304,6 @@ export default function ScansPage() {
         </Button>
       </div>
 
-      {/* Hata Bildirimi */}
       {error && (
         <Alert variant="destructive" className="border-destructive/30 bg-destructive/5 animate-in fade-in-50">
           <AlertCircle className="size-4" />
@@ -336,7 +311,6 @@ export default function ScansPage() {
         </Alert>
       )}
 
-      {/* İstatistik & Özet Kartları */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <Card className="p-4 bg-gradient-to-br from-slate-50 to-white dark:from-slate-900/50 dark:to-slate-950 border shadow-xs">
           <div className="flex items-center justify-between">
@@ -397,11 +371,9 @@ export default function ScansPage() {
         </Card>
       </div>
 
-      {/* Arama & Filtreleme Çubuğu */}
       <Card className="shadow-xs border bg-card">
         <CardContent className="p-3 sm:p-4">
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-            {/* Arama Kutusu */}
             <div className="relative flex-1 max-w-md">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
               <Input
@@ -412,7 +384,6 @@ export default function ScansPage() {
               />
             </div>
 
-            {/* Filtre Butonları */}
             <div className="flex items-center gap-1.5 bg-muted/50 p-1 rounded-xl border border-muted-foreground/15 self-start sm:self-auto">
               <Button
                 variant={selectedFilter === 'ALL' ? 'default' : 'ghost'}
@@ -443,7 +414,6 @@ export default function ScansPage() {
         </CardContent>
       </Card>
 
-      {/* Ana Tarama Listesi */}
       <Card className="shadow-sm border">
         <CardHeader className="pb-3 border-b bg-muted/20">
           <div className="flex items-center justify-between">
@@ -505,9 +475,7 @@ export default function ScansPage() {
                     key={scan.id}
                     className="group relative flex flex-col gap-3.5 rounded-xl border bg-card p-4 transition-all duration-200 hover:border-primary/40 hover:shadow-md hover:bg-slate-50/50 dark:hover:bg-slate-900/40 sm:flex-row sm:items-center sm:justify-between"
                   >
-                    {/* Sol Kısım: Tıklanabilir Renkli Avatar, İsim & Görev/Bölge Detayı */}
                     <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                      {/* Tıklanabilir Görsel Profil Avatarı */}
                       <button
                         type="button"
                         onClick={() => handleOpenPersonnelDrawer(scan.user)}
@@ -532,7 +500,6 @@ export default function ScansPage() {
                         </Avatar>
                       </button>
 
-                      {/* Personel Bilgisi (Tıklanabilir) & Bölge */}
                       <div className="min-w-0 flex-1 space-y-1">
                         <div className="flex items-center gap-2 flex-wrap">
                           <button
@@ -552,7 +519,6 @@ export default function ScansPage() {
                           </Badge>
                         </div>
 
-                        {/* Bölge Bilgisi */}
                         {scan.task?.zone ? (
                           <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
                             <MapPin className="size-3.5 text-primary/70 shrink-0" />
@@ -572,9 +538,7 @@ export default function ScansPage() {
                       </div>
                     </div>
 
-                    {/* Sağ Kısım: Aksiyon, İçeride Kalınan Süre, Kademeli Tarih ve Risk */}
                     <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 sm:flex-col sm:items-end sm:justify-center border-t sm:border-t-0 pt-2 sm:pt-0 border-dashed border-slate-200 dark:border-slate-800">
-                      {/* Aksiyon & Süre Badge Alanı */}
                       <div className="flex items-center gap-2">
                         {isCheckOut && durationText && (
                           <Badge
@@ -596,7 +560,6 @@ export default function ScansPage() {
                         )}
                       </div>
 
-                      {/* Kademeli ve Akıllı Tarih Gösterimi */}
                       <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400">
                         <Clock className="size-3.5 text-muted-foreground/70" />
                         <span title={scan.clientScannedAt}>
@@ -612,14 +575,10 @@ export default function ScansPage() {
         </CardContent>
       </Card>
 
-      {/* ========================================================================= */}
-      {/* PERSONEL DETAY VE DIŞA AKTARMA DRAWER (SHEET)                             */}
-      {/* ========================================================================= */}
       <Sheet open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
         <SheetContent side="right" className="sm:max-w-md w-full overflow-y-auto p-0 flex flex-col">
           {selectedPersonnel && (
             <div className="flex flex-col h-full">
-              {/* Üst Profil Kartı Header */}
               <div className="p-6 bg-gradient-to-br from-primary/10 via-background to-muted/30 border-b relative">
                 <SheetHeader className="p-0 text-left">
                   <div className="flex items-start gap-4">
@@ -662,7 +621,6 @@ export default function ScansPage() {
                   </SheetDescription>
                 </SheetHeader>
 
-                {/* İletişim Bilgileri Chipleri */}
                 <div className="mt-4 grid gap-2">
                   <div className="flex items-center gap-2 text-xs bg-background/80 backdrop-blur-xs p-2 rounded-lg border text-slate-700 dark:text-slate-300">
                     <Mail className="size-3.5 text-primary shrink-0" />
@@ -685,7 +643,6 @@ export default function ScansPage() {
                 </div>
               </div>
 
-              {/* Orta İstatistik & Dışa Aktarma Butonu */}
               <div className="p-4 bg-muted/20 border-b space-y-3">
                 <div className="grid grid-cols-3 gap-2 text-center">
                   <div className="p-2.5 rounded-xl bg-background border shadow-2xs">
@@ -708,73 +665,57 @@ export default function ScansPage() {
                   </div>
                 </div>
 
-                {/* Dışa Aktar (Excel) Butonu */}
                 <Button
                   onClick={handleExportPersonnelToExcel}
                   disabled={selectedPersonnelScans.length === 0}
-                  className="w-full gap-2 font-semibold shadow-xs cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white"
+                  className="w-full gap-2 font-semibold shadow-xs cursor-pointer"
+                  size="sm"
                 >
-                  <FileSpreadsheet className="size-4" />
-                  <span>Verileri Dışarı Aktar (Excel)</span>
-                  <Download className="size-3.5 opacity-80 ml-auto" />
+                  <Download className="size-4" />
+                  <span>Personel Geçmişini Excel'e Aktar (.xlsx)</span>
                 </Button>
               </div>
 
-              {/* Alt Kısım: Sadece Bu Personele Ait Hareket Geçmişi */}
-              <div className="p-4 flex-1 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-900 dark:text-slate-100">
-                    <History className="size-4 text-primary" />
-                    <span>Hareket Geçmişi ({selectedPersonnelScans.length})</span>
-                  </div>
-                  <span className="text-[11px] text-muted-foreground">Kronolojik</span>
-                </div>
+              <div className="flex-1 p-4 overflow-y-auto space-y-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+                  <History className="size-3.5 text-primary" />
+                  <span>Son Hareketleri ({selectedPersonnelScans.length})</span>
+                </h4>
 
                 {selectedPersonnelScans.length === 0 ? (
-                  <div className="py-10 text-center text-muted-foreground">
-                    <History className="size-8 mx-auto mb-2 opacity-30" />
-                    <p className="text-xs">Bu personele ait hareket kaydı bulunamadı.</p>
+                  <div className="text-center py-10 text-muted-foreground text-sm">
+                    Bu personele ait kayıt bulunamadı.
                   </div>
                 ) : (
-                  <div className="space-y-2.5">
-                    {selectedPersonnelScans.map((scan) => {
-                      const duration = formatDuration(scan.durationMinutes);
-                      return (
-                        <div
-                          key={scan.id}
-                          className="p-3 rounded-xl border bg-background shadow-2xs space-y-2 transition-colors hover:border-primary/30"
-                        >
-                          <div className="flex items-center justify-between">
-                            {getActionBadge(scan.resolvedAction)}
-                            <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                              <Clock className="size-3" />
-                              <span>{formatSmartDate(scan.clientScannedAt)}</span>
-                            </div>
-                          </div>
+                  selectedPersonnelScans.map((s) => (
+                    <div
+                      key={s.id}
+                      className="p-3 rounded-xl border bg-card text-xs space-y-2 shadow-2xs hover:border-primary/30 transition-colors"
+                    >
+                      <div className="flex items-center justify-between">
+                        {getActionBadge(s.resolvedAction)}
+                        <span className="text-muted-foreground font-medium">
+                          {formatSmartDate(s.clientScannedAt)}
+                        </span>
+                      </div>
 
-                          <div className="flex items-center justify-between text-xs pt-1 border-t border-dashed">
-                            <div className="flex items-center gap-1 text-slate-600 dark:text-slate-400">
-                              <MapPin className="size-3 text-primary/70" />
-                              <span className="font-medium text-slate-800 dark:text-slate-200">
-                                {scan.task?.zone?.name || 'Genel Tarama'}
-                              </span>
-                              {scan.task?.zone?.code && (
-                                <span className="text-[10px] text-muted-foreground">
-                                  ({scan.task.zone.code})
-                                </span>
-                              )}
-                            </div>
-
-                            {scan.resolvedAction === 'CHECK_OUT' && duration && (
-                              <span className="text-[11px] font-semibold text-amber-700 dark:text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded-md">
-                                {duration}
-                              </span>
-                            )}
-                          </div>
+                      {s.task?.zone ? (
+                        <div className="flex items-center gap-1 text-slate-700 dark:text-slate-300 font-medium">
+                          <MapPin className="size-3 text-primary shrink-0" />
+                          <span className="truncate">{s.task.zone.name} ({s.task.zone.code})</span>
                         </div>
-                      );
-                    })}
-                  </div>
+                      ) : (
+                        <div className="text-muted-foreground italic">Genel Tarama</div>
+                      )}
+
+                      {s.durationMinutes !== null && s.durationMinutes !== undefined && (
+                        <div className="flex items-center gap-1 text-amber-700 dark:text-amber-400 font-semibold bg-amber-500/10 px-2 py-1 rounded-md w-fit">
+                          <Hourglass className="size-3" />
+                          <span>Süre: {formatDuration(s.durationMinutes)}</span>
+                        </div>
+                      )}
+                    </div>
+                  ))
                 )}
               </div>
             </div>

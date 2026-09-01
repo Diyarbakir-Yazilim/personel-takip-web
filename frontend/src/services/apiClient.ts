@@ -3,10 +3,10 @@
  *
  * Interception strategy:
  * 1. Device already offline -> write to IndexedDB `pending_scans`,
- *                                  report `queued: true`.
+ *                            report `queued: true`.
  * 2. Online, request succeeds -> return server data as usual.
  * 3. Online, fetch REJECTS (network dropped mid-flight, DNS, etc.)
- *                              -> queue exactly like case 1.
+ *                            -> queue exactly like case 1.
  * 4. Online, server responds 4xx/5xx -> throw ApiError.
  *
  * A real server rejection must NOT be silently queued.
@@ -22,28 +22,12 @@ type QueueMethod = "PATCH" | "POST" | "PUT" | "DELETE";
 
 type QueueAction = "start" | "complete" | "flag";
 
-export function getStoredToken(): string | null {
-  if (typeof window === "undefined") return null;
-
-  // Try to get token from cookies
-  const match = document.cookie.match(new RegExp("(^| )token=([^;]+)"));
-
-  if (match) {
-    return match[2];
-  }
-
-    const matchToken = document.cookie.match(new RegExp("(^| )token=([^;]+)"));
-  if (matchToken) {
-    return matchToken[2];
-  }
-  // Fallback to localStorage
-  return localStorage.getItem("access_token") || localStorage.getItem("token");
-}
-
 export function getApiBaseUrl(): string {
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL || "";
-
-  return baseUrl ? baseUrl.replace(/\/$/, "") : "/api/proxy";
+  
+  if (typeof window !== "undefined") {
+    return process.env.NEXT_PUBLIC_API_URL || "";
+  }
+  return process.env.BACKEND_API_URL || "http://backend:5000/v1";
 }
 
 /**
@@ -107,6 +91,7 @@ async function queueRequest(
 export async function apiRequest<T = unknown>(
   endpoint: string,
   options: RequestOptions = {},
+  isRetry = false,
 ): Promise<{
   success: boolean;
   data?: T;
@@ -114,13 +99,8 @@ export async function apiRequest<T = unknown>(
 }> {
   const method = options.method || "GET";
   const payload = options.body;
-  const token = getStoredToken();
 
   const headers = new Headers(options.headers || {});
-
-  if (token) {
-    headers.set("Authorization", `Bearer ${token}`);
-  }
 
   if (!headers.has("Content-Type") && payload && typeof payload !== "string") {
     headers.set("Content-Type", "application/json");
@@ -154,7 +134,7 @@ export async function apiRequest<T = unknown>(
   /**
    * Build fetch options.
    */
-  const { body:body, ...restOptions } = options;
+  const { body: _, ...restOptions } = options;
 
   const fetchOptions: RequestInit = {
     ...restOptions,
@@ -192,6 +172,26 @@ export async function apiRequest<T = unknown>(
       success: true,
       queued: true,
     };
+  }
+
+  /**
+   * AUTO REFRESH TOKEN INTERCEPTOR (401 Handling)
+   * If access token has expired (401), attempt to refresh it once and retry the original request.
+   */
+  if (response.status === 401 && !isRetry && !endpoint.includes("/auth/refresh")) {
+    try {
+      const refreshRes = await fetch("/api/auth/refresh", {
+        method: "POST",
+        credentials: "include",
+      });
+
+      if (refreshRes.ok) {
+        // Token refreshed successfully, retry the original request
+        return apiRequest<T>(endpoint, options, true);
+      }
+    } catch (refreshError) {
+      console.error("[API] Token yenileme isteği başarısız oldu:", refreshError);
+    }
   }
 
   /**

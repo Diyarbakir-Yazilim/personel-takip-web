@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Patch,
   HttpCode,
   HttpStatus,
   Post,
@@ -17,7 +18,6 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
-// Express Request tipini cookies içerecek şekilde genişletiyoruz (ESLint Unsafe Access Çözümü)
 interface RequestWithCookies extends ExpressRequest {
   cookies: Record<string, string | undefined>;
 }
@@ -25,6 +25,7 @@ interface RequestWithCookies extends ExpressRequest {
 interface AuthenticatedRequest extends ExpressRequest {
   user: {
     id: string;
+    fullName?: string;
     email: string;
     role: string;
   };
@@ -127,5 +128,38 @@ export class AuthController {
   @Get('profile')
   getProfile(@Request() req: AuthenticatedRequest) {
     return req.user;
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('profile')
+  async updateProfile(
+    @Request() req: AuthenticatedRequest,
+    @Body() dto: { fullName?: string; email?: string },
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const userId = req.user.id;
+    const result = await this.authService.updateProfile(userId, dto);
+
+    if (result.access_token) {
+      this.setAuthCookies(res, result.access_token, result.refresh_token);
+    }
+
+    return { user: result.user };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('change-password')
+  async changePassword(
+    @Request() req: AuthenticatedRequest,
+    @Body() dto: { currentPassword: string; newPassword: string },
+  ) {
+    const userId = req.user.id;
+    await this.authService.changePassword(
+      userId,
+      dto.currentPassword,
+      dto.newPassword,
+    );
+
+    return { message: 'Şifreniz başarıyla güncellendi.' };
   }
 }

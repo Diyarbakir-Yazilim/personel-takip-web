@@ -14,6 +14,7 @@ export interface AuthTokens {
   refresh_token: string;
   user: {
     id: string;
+    fullName: string;
     email: string;
     role: string;
   };
@@ -46,7 +47,12 @@ export class AuthService {
       },
     });
 
-    return await this.generateTokens(user.id, user.email, user.role);
+    return await this.generateTokens(
+      user.id,
+      user.fullName,
+      user.email,
+      user.role,
+    );
   }
 
   async login(dto: LoginDto): Promise<AuthTokens> {
@@ -64,7 +70,12 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password.');
     }
 
-    return await this.generateTokens(user.id, user.email, user.role);
+    return await this.generateTokens(
+      user.id,
+      user.fullName,
+      user.email,
+      user.role,
+    );
   }
 
   async refreshToken(refreshToken: string): Promise<AuthTokens> {
@@ -81,7 +92,6 @@ export class AuthService {
         secret: refreshSecret,
       });
 
-      // Token tipi refresh değilse reddet
       if (payload.type !== 'refresh') {
         throw new UnauthorizedException('Invalid token type.');
       }
@@ -94,19 +104,84 @@ export class AuthService {
         throw new UnauthorizedException('User not found.');
       }
 
-      return await this.generateTokens(user.id, user.email, user.role);
+      return await this.generateTokens(
+        user.id,
+        user.fullName,
+        user.email,
+        user.role,
+      );
     } catch {
       throw new UnauthorizedException('Invalid or expired refresh token.');
     }
   }
 
+  async updateProfile(
+    userId: string,
+    dto: { fullName?: string; email?: string },
+  ): Promise<AuthTokens> {
+    const updatedUser = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        ...(dto.fullName && { fullName: dto.fullName }),
+        ...(dto.email && { email: dto.email }),
+      },
+    });
+
+    return await this.generateTokens(
+      updatedUser.id,
+      updatedUser.fullName,
+      updatedUser.email,
+      updatedUser.role,
+    );
+  }
+
+  async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<void> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('Kullanıcı bulunamadı.');
+    }
+
+    const isPasswordValid = await verify(user.password, currentPassword);
+
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('Mevcut şifreniz yanlış.');
+    }
+
+    const hashedPassword = await hash(newPassword);
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { password: hashedPassword },
+    });
+  }
+
   private async generateTokens(
     userId: string,
+    fullName: string,
     email: string,
     role: string,
   ): Promise<AuthTokens> {
-    const accessPayload = { sub: userId, email, role, type: 'access' };
-    const refreshPayload = { sub: userId, email, role, type: 'refresh' };
+    const accessPayload = {
+      sub: userId,
+      email,
+      role,
+      type: 'access',
+      fullName,
+    };
+    const refreshPayload = {
+      sub: userId,
+      email,
+      role,
+      type: 'refresh',
+      fullName,
+    };
 
     const accessSecret =
       process.env.JWT_SECRET || 'fallback_access_secret_key_123';
@@ -129,6 +204,7 @@ export class AuthService {
       refresh_token: refreshToken,
       user: {
         id: userId,
+        fullName,
         email,
         role,
       },

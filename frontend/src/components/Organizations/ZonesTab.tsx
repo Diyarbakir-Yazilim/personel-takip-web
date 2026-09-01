@@ -19,13 +19,13 @@ export function ZonesTab({ isActive }: { isActive: boolean }) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [qrZone, setQrZone] = useState<Zone | null>(null);
   
-  // Form State
+  // Form State (Dakika bazlı)
   const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [floorId, setFloorId] = useState<string>("");
-  const [minDurationSec, setMinDurationSec] = useState<number | "">("");
-  const [maxDurationSec, setMaxDurationSec] = useState<number | "">("");
+  const [minDurationMin, setMinDurationMin] = useState<number | "">("");
+  const [maxDurationMin, setMaxDurationMin] = useState<number | "">("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -53,8 +53,8 @@ export function ZonesTab({ isActive }: { isActive: boolean }) {
     setName("");
     setCode("");
     setFloorId("");
-    setMinDurationSec("");
-    setMaxDurationSec("");
+    setMinDurationMin("");
+    setMaxDurationMin("");
     setIsDialogOpen(true);
   }
 
@@ -63,8 +63,9 @@ export function ZonesTab({ isActive }: { isActive: boolean }) {
     setName(z.name);
     setCode(z.code);
     setFloorId(z.floorId);
-    setMinDurationSec(z.minDurationSec ?? "");
-    setMaxDurationSec(z.maxDurationSec ?? "");
+    // Backend'den direkt dakika olarak geldiği varsayılıyor
+    setMinDurationMin((z as any).minDurationMin ?? "");
+    setMaxDurationMin((z as any).maxDurationMin ?? "");
     setIsDialogOpen(true);
   }
 
@@ -82,8 +83,8 @@ export function ZonesTab({ isActive }: { isActive: boolean }) {
         floorId,
         code,
         name,
-        minDurationSec: minDurationSec === "" ? undefined : Number(minDurationSec),
-        maxDurationSec: maxDurationSec === "" ? undefined : Number(maxDurationSec),
+        minDurationMin: minDurationMin === "" ? undefined : Number(minDurationMin),
+        maxDurationMin: maxDurationMin === "" ? undefined : Number(maxDurationMin),
       };
 
       if (editingId) {
@@ -146,7 +147,7 @@ export function ZonesTab({ isActive }: { isActive: boolean }) {
                 </TableCell>
               </TableRow>
             ) : (
-              zones.map((z) => (
+              zones.map((z: any) => (
                 <TableRow key={z.id}>
                   <TableCell>
                     {z.floor?.building?.name ? `${z.floor.building.name} - ` : ""}
@@ -155,7 +156,7 @@ export function ZonesTab({ isActive }: { isActive: boolean }) {
                   <TableCell className="font-mono text-sm">{z.code}</TableCell>
                   <TableCell className="font-medium">{z.name}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">
-                    Min: {z.minDurationSec ?? "-"}s | Max: {z.maxDurationSec ?? "-"}s
+                    Min: {z.minDurationMin ?? "-"} dk | Max: {z.maxDurationMin ?? "-"} dk
                   </TableCell>
                   <TableCell className="text-right">
                     <Button variant="ghost" size="icon" onClick={() => setQrZone(z)} title="QR Kod Üret">
@@ -223,23 +224,23 @@ export function ZonesTab({ isActive }: { isActive: boolean }) {
             
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="minDuration">Min Süre (sn)</Label>
+                <Label htmlFor="minDuration">Min Süre (Dakika)</Label>
                 <Input 
                   id="minDuration" 
                   type="number"
-                  value={minDurationSec} 
-                  onChange={(e) => setMinDurationSec(e.target.value ? Number(e.target.value) : "")} 
-                  placeholder="Örn. 60"
+                  value={minDurationMin} 
+                  onChange={(e) => setMinDurationMin(e.target.value ? Number(e.target.value) : "")} 
+                  placeholder="Örn. 5"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="maxDuration">Max Süre (sn)</Label>
+                <Label htmlFor="maxDuration">Max Süre (Dakika)</Label>
                 <Input 
                   id="maxDuration" 
                   type="number"
-                  value={maxDurationSec} 
-                  onChange={(e) => setMaxDurationSec(e.target.value ? Number(e.target.value) : "")} 
-                  placeholder="Örn. 3600"
+                  value={maxDurationMin} 
+                  onChange={(e) => setMaxDurationMin(e.target.value ? Number(e.target.value) : "")} 
+                  placeholder="Örn. 60"
                 />
               </div>
             </div>

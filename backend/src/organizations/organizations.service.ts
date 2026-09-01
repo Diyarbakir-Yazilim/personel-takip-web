@@ -113,6 +113,7 @@ export class OrganizationsService {
       where: buildingId ? { buildingId } : undefined,
       include: {
         zones: true,
+        building: true,
       },
       orderBy: { level: 'asc' },
     });
@@ -121,7 +122,7 @@ export class OrganizationsService {
   async findOneFloor(id: string) {
     const floor = await this.prisma.floor.findUnique({
       where: { id },
-      include: { zones: true },
+      include: { zones: true, building: true },
     });
 
     if (!floor) {
@@ -181,8 +182,8 @@ export class OrganizationsService {
           code: dto.code,
           name: dto.name,
           floorId: dto.floorId ?? null,
-          minDurationSec: dto.minDurationSec ?? null,
-          maxDurationSec: dto.maxDurationSec ?? null,
+          minDurationSec: dto.minDurationMin ?? null,
+          maxDurationSec: dto.maxDurationMin ?? null,
         },
       });
     } catch (error) {
