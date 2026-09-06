@@ -60,11 +60,15 @@ export default function ProfilePage() {
     void fetchProfile();
   }, []);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch (err) {}
     document.cookie = 'token=; path=/; max-age=0';
     document.cookie = 'role=; path=/; max-age=0';
     localStorage.removeItem('token');
     router.push('/login');
+    router.refresh();
   };
 
   // Helper to get initials for avatar
