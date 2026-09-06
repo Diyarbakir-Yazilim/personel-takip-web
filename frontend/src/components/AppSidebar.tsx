@@ -125,9 +125,10 @@ export function AppSidebar() {
 
   return (
     <Sidebar variant="inset" className="border-r border-sidebar-border bg-sidebar/50 backdrop-blur-xl">
-      <SidebarHeader className="h-18 border-b border-sidebar-border/60 flex flex-row items-center px-5">
-        <div className="flex items-center gap-3 w-full">
-          <div className="flex size-10 items-center justify-center rounded-xl bg-sky-500/10 text-sky-500 shadow-inner border border-sky-500/20">
+      <SidebarHeader className="h-18 border-b border-sidebar-border/60 flex flex-row items-center px-5 bg-[#00B4D8] text-white">
+        <div className="flex items-center gap-3 w-full" >
+          <div className="flex size-10 items-center justify-center 
+  rounded-xl bg-white/20 text-white shadow-inner border border-white/30">
             <Sparkles className="size-5" />
           </div>
           <div className="flex flex-col">
@@ -137,12 +138,12 @@ export function AppSidebar() {
         </div>
       </SidebarHeader>
 
-      <SidebarContent className="px-3 py-4">
+      <SidebarContent className="px-3 py-4 bg-[#90E0EF]">
         <SidebarGroup>
           <SidebarGroupLabel className="text-xs font-bold tracking-wider text-foreground px-3 mb-2">
             YÖNETİM MENÜSÜ
           </SidebarGroupLabel>
-          <SidebarMenu className="space-y-1.5">
+          <SidebarMenu className="space-y-1.5"style={{ backgroundColor: "#90E0EF" }}>
             {filteredNavItems.map((item) => {
               const isActive = pathname === item.href;
               return (
@@ -153,8 +154,8 @@ export function AppSidebar() {
                     tooltip={item.label}
                     className={`h-11 px-3.5 rounded-xl transition-all duration-200 font-medium transform hover:translate-x-1 ${
                       isActive
-                        ? 'bg-sky-500 text-white shadow-md shadow-sky-500/25 hover:bg-sky-600 hover:text-white'
-                        : 'text-muted-foreground hover:bg-sky-500/15 hover:text-sky-600 dark:hover:text-sky-400'
+                        ? 'bg-sky-500 text-white shadow-md shadow-[#0096C7]/25 hover:bg-[#0077A8] hover:text-white'
+                        : 'text-muted-foreground hover:bg-white/40 hover:text-sky-600 dark:hover:text-[#0096C7]'
                     }`}
                   >
                     <item.icon className={`size-4 transition-transform duration-200 ${isActive ? 'text-white scale-110' : 'text-muted-foreground group-hover:scale-110 group-hover:text-sky-600 dark:group-hover:text-sky-400'}`} />
@@ -167,7 +168,7 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="p-3 border-t border-sidebar-border/60 bg-sidebar/30">
+      <SidebarFooter className="p-3 border-t border-sidebar-border/60 bg-[#CAF0F8]">
         <SidebarMenu>
           <SidebarMenuItem>
             <DropdownMenu>
