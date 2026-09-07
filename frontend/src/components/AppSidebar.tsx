@@ -101,11 +101,15 @@ export function AppSidebar() {
     return navItems.filter((item) => allowedHrefs.includes(item.href));
   }, [role]);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch (err) {}
     document.cookie = 'token=; path=/; max-age=0';
     document.cookie = 'role=; path=/; max-age=0';
     localStorage.removeItem('token');
     router.push('/login');
+    router.refresh();
   };
 
   return (
@@ -116,7 +120,7 @@ export function AppSidebar() {
             <ClipboardList className="size-4" />
           </div>
           <div className="flex flex-col">
-            <span className="text-sm font-bold leading-tight">DTSO Temizlik</span>
+            <span className="text-sm font-bold leading-tight">Temizlik</span>
             <span className="text-xs font-medium text-muted-foreground">Takip Sistemi</span>
           </div>
         </div>

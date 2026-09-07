@@ -97,7 +97,7 @@ export function QrCodeDialog({ zone, isOpen, onClose }: QrCodeDialogProps) {
               ${zone.floor?.building?.name ? zone.floor.building.name + " - " : ""}${zone.floor?.name || ""}
             </div>
             ${svgContent}
-            <div class="footer">DTSO Temizlik Takip Sistemi</div>
+            <div class="footer">Temizlik Takip Sistemi</div>
           </div>
           <script>
             setTimeout(() => {

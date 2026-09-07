@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "DTSO Temizlik Takip Sistemi",
+  title: "Temizlik Takip Sistemi",
   description: "Diyarbakır Ticaret ve Sanayi Odası Temizlik Takip Sistemi",
   manifest: "/manifest.json",
 };

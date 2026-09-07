@@ -10,6 +10,7 @@ const nextConfig: NextConfig = {
     "192.168.56.1",
     "192.168.1.108",
     "viewing-played-highs-nano.trycloudflare.com",
+    "bottles-fruit-talented-idle.trycloudflare.com",
   ],
   output: "standalone",
 };

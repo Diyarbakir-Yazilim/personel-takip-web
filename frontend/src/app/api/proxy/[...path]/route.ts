@@ -7,7 +7,7 @@ async function handleProxy(request: NextRequest) {
 const targetUrl = `${backendUrl}/${path}`;
 
   // Retrieve token from HttpOnly cookie
-  const token = request.cookies.get('token')?.value;
+  const token = request.cookies.get('access_token')?.value || request.cookies.get('token')?.value;
 
   const headers = new Headers(request.headers);
   headers.delete('host');

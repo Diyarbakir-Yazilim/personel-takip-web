@@ -80,7 +80,7 @@ function LoginContent() {
           <ClipboardList className="size-7" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">DTSO Temizlik Takip</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Temizlik Takip</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Devam etmek için hesabınıza giriş yapın
           </p>
@@ -108,7 +108,7 @@ function LoginContent() {
               <Input
                 id="email"
                 type="email"
-                placeholder="ornek@dtso.org.tr"
+                placeholder="ornek@temizliktakip.com"
                 autoComplete="email"
                 required
                 value={email}

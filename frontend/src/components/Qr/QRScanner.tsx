@@ -39,6 +39,33 @@ export default function QRScanner({
     onErrorRef.current = onError;
   }, [onError]);
 
+  // html5-qrcode kütüphanesi DOM'dan silinirken play() promise'ini unhandled bırakır.
+  // Geliştirici modunda bu Next.js kırmızı hata ekranına sebep olur. Bunu engelliyoruz.
+  useEffect(() => {
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      if (
+        event.reason?.name === "AbortError" ||
+        event.reason?.message?.includes("play() request was interrupted")
+      ) {
+        event.preventDefault();
+      }
+    };
+
+    const handleError = (event: ErrorEvent) => {
+      if (event.message?.includes("play() request was interrupted")) {
+        event.preventDefault();
+      }
+    };
+
+    window.addEventListener("unhandledrejection", handleUnhandledRejection);
+    window.addEventListener("error", handleError);
+
+    return () => {
+      window.removeEventListener("unhandledrejection", handleUnhandledRejection);
+      window.removeEventListener("error", handleError);
+    };
+  }, []);
+
   useEffect(() => {
     mountedRef.current = true;
     scannedRef.current = false;
