@@ -120,7 +120,7 @@ export function AppSidebar() {
             <ClipboardList className="size-4" />
           </div>
           <div className="flex flex-col">
-            <span className="text-sm font-bold leading-tight">DTSO Temizlik</span>
+            <span className="text-sm font-bold leading-tight">Temizlik</span>
             <span className="text-xs font-medium text-muted-foreground">Takip Sistemi</span>
           </div>
         </div>
