@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { X, CheckCircle2, Clock, Activity } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import type { FloorBreakdownItem, ZoneItem } from "@/app/dashboard/page";
+import type { FloorBreakdownItem, ZoneItem } from "@/types/dashboard"
 
 interface FloorModalProps {
   selectedFloor: FloorBreakdownItem | null;
@@ -20,7 +20,7 @@ export function FloorModal({
   const completedList = selectedFloor.completedZonesList || [];
   const inProgressList = selectedFloor.inProgressZonesList || [];
   // page.tsx uyumu için remainingZonesList veya pendingZonesList kontrolü
-  const remainingList = selectedFloor.pendingZonesList || selectedFloor.remainingZonesList || [];
+  const remainingList = selectedFloor.pendingZonesList || selectedFloor.pendingZonesList || [];
 
   const allZones = [...completedList, ...inProgressList, ...remainingList];
   const uniqueFloors = Array.from(

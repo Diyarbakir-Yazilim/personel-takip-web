@@ -7,6 +7,12 @@ export interface ZoneItem {
   floorName?: string;
 }
 
+export interface CompletedZones {
+  buildingName: string;
+  floorName: string;
+  total: number;
+  completed: number;
+}
 export interface FloorBreakdownItem {
   buildingName: string;
   floorName: string;

@@ -14,30 +14,48 @@ import {
   Sparkles,
 } from "lucide-react";
 
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiRequest } from "@/services/apiClient";
 import { format, parseISO } from "date-fns";
 import { ActiveStaffCard } from "@/components/dashboard/ActiveStaffCard";
-import FloorBreakdownCard from "@/components/dashboard/FloorBreakdownCard";
+import { FloorBreakdownCard } from "@/components/dashboard/FloorBreakdownCard";
+import { TotalZonesCard } from "@/components/dashboard/TotalZonesCard";
 import { FloorModal } from "@/components/dashboard/FloorModal";
 import { StaffModal } from "@/components/dashboard/StaffModal";
+import {
+  DashboardStats,
+  Zone,
+  ZonesApiResponse,
+  FloorBreakdownItem,
+  statusColors,
+} from "@/types/dashboard";
+
 
 export default function DashboardPage() {
   const router = useRouter();
 
-
- /* const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [zones, setZones] = useState<Zone[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [zones, setZones] = useState<Zone[]>([]);
   const [isStaffModalOpen, setIsStaffModalOpen] = useState(false);
   const [selectedFloor, setSelectedFloor] = useState<FloorBreakdownItem | null>(
     null,
   );
-*/
-  const loadData = async () => {
-    setIsLoading(true);
+
+  // Parametre ekleyerek yükleme state'inin ne zaman değişeceğini kontrol ediyoruz
+  const loadData = async (showLoader = true) => {
+    if (showLoader) {
+      setIsLoading(true);
+    }
     try {
       const [statsRes, zonesRes] = await Promise.all([
         apiRequest("/tasks/dashboard-stats"),
@@ -49,19 +67,7 @@ export default function DashboardPage() {
       }
 
       if (zonesRes.success && zonesRes.data) {
-        const resData = zonesRes.data as ZonesApiResponse["data"];
-        if (Array.isArray(resData)) {
-          setZones(resData);
-        } else if (
-          resData &&
-          typeof resData === "object" &&
-          "data" in resData &&
-          Array.isArray(resData.data)
-        ) {
-          setZones(resData.data);
-        } else {
-          setZones([]);
-        }
+        setZones((zonesRes.data as Zone[]) ?? []);
       }
     } catch (error) {
       console.error("Veriler yüklenemedi:", error);
@@ -71,11 +77,11 @@ export default function DashboardPage() {
   };
 
   useEffect(() => {
-    if (role && role !== "STAFF") {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      void loadData();
-    }
-  }, [role]);
+  const fetchData = async () => {
+    await loadData(false);
+  };
+  fetchData();
+}, []);
 
   const formatActivityTime = (dateStr: string) => {
     try {
@@ -85,23 +91,14 @@ export default function DashboardPage() {
     }
   };
 
-  // Rol henüz okunmadıysa veya STAFF ise yüklenme ekranı göster
-  if (role === null || role === "STAFF") {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh] max-w-7xl mx-auto px-4">
-        <Skeleton className="h-40 w-full rounded-2xl" />
-      </div>
-    );
-  }
-
   const isEmpty = !stats?.floorBreakdown || stats.floorBreakdown.length === 0;
 
   return (
     <div className="space-y-8 pb-12 max-w-7xl mx-auto px-4 sm:px-6">
-      {/* ÜST BAŞLIK ALANI */}
+      {/* HEADER AREA */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-slate-200/80 dark:border-slate-800/80 pb-6">
         <div className="flex items-center gap-4">
-          <div className="flex size-12 items-center justify-center rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-500 text-white shadow-lg shadow-indigo-500/20">
+          <div className="flex size-12 items-center justify-center rounded-2xl bg-linear-to-tr from-indigo-600 to-violet-500 text-white shadow-lg shadow-indigo-500/20">
             <LayoutDashboard className="size-6" />
           </div>
           <div>
@@ -162,158 +159,22 @@ export default function DashboardPage() {
               totalStaff={stats.totalStaff}
               onOpenModal={() => setIsStaffModalOpen(true)}
             />
+            <TotalZonesCard
+              floorBreakdown={stats.floorBreakdown}
+              isEmpty={isEmpty}
+              onOpenModal={() => setSelectedFloor(stats.floorBreakdown[0] || null)}
+            />
+          
+
             <FloorBreakdownCard
               floorBreakdown={stats.floorBreakdown}
               isEmpty={isEmpty}
-              onOpenModal={(summaryFloor) => setSelectedFloor(summaryFloor)}
+              onOpenModal={setSelectedFloor}
             />
-            {/* Devam Eden & Bekleyen */}
-            <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800/80 shadow-sm bg-white dark:bg-slate-900/80 backdrop-blur-sm">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                    Devam Eden & Bekleyen
-                  </p>
-                  <div className="p-2 bg-blue-50 dark:bg-blue-950/40 rounded-xl text-blue-600 dark:text-blue-400">
-                    <Timer className="size-5" />
-                  </div>
-                </div>
-                <div className="mt-4 flex items-baseline justify-between">
-                  <span className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-                    {stats.inProgressTasks + stats.pendingTasks}
-                  </span>
-                  <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
-                    Süreçte
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Sorunlu / Geciken */}
-            <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800/80 shadow-sm bg-white dark:bg-slate-900/80 backdrop-blur-sm">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                    Sorunlu / Geciken
-                  </p>
-                  <div className="p-2 bg-red-50 dark:bg-red-950/40 rounded-xl text-red-600 dark:text-red-400">
-                    <AlertTriangle className="size-5" />
-                  </div>
-                </div>
-                <div className="mt-4 flex items-baseline justify-between">
-                  <span className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-                    {stats.flaggedTasks + stats.missedTasks}
-                  </span>
-                  <span className="text-xs font-medium text-red-600 dark:text-red-400">
-                    İnceleme gerekli
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
           </div>
-
+          
           {/* İKİ SÜTUNLU ANA YERLEŞİM */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* SOL SÜTUN: İLERLEME VE BÖLGELER */}
-            <div className="lg:col-span-2 space-y-6">
-              {/* Günlük İlerleme Kartı */}
-              <Card className="rounded-2xl shadow-sm border border-slate-200/80 dark:border-slate-800/80 bg-white dark:bg-slate-900/80 backdrop-blur-md">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base font-bold flex items-center justify-between">
-                    <span>Günlük İlerleme Oranı</span>
-                    <span className="text-xl font-extrabold text-primary">
-                      %{stats.completionRate}
-                    </span>
-                  </CardTitle>
-                  <CardDescription>
-                    Bugün tamamlanması gereken görevlerin genel başarı yüzdesi
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Progress
-                    value={stats.completionRate}
-                    className="h-3 rounded-full bg-slate-100 dark:bg-slate-800"
-                  />
-                </CardContent>
-              </Card>
-
-              {/* Kayıtlı Bölgeler */}
-              <div>
-                <div className="flex items-center justify-between mb-4 px-1">
-                  <div className="flex items-center gap-2">
-                    <MapPin className="size-5 text-primary" />
-                    <h2 className="text-lg font-bold tracking-tight text-slate-900 dark:text-white">
-                      Kayıtlı Bölgeler
-                    </h2>
-                  </div>
-                  <span className="text-xs font-medium text-slate-500 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-full">
-                    {zones.length} Bölge
-                  </span>
-                </div>
-
-                {zones.length === 0 ? (
-                  <Card className="border-dashed border-slate-200 dark:border-slate-800 shadow-none bg-slate-50/50 dark:bg-slate-900/30 rounded-2xl">
-                    <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-                      <MapPin className="size-10 text-slate-300 dark:text-slate-700 mb-3" />
-                      <p className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                        Henüz kayıtlı bir bölge bulunmuyor.
-                      </p>
-                      <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
-                        Organizasyon sekmesinden bölge ekleyebilirsiniz.
-                      </p>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {zones.map((zone) => {
-                      const validStatuses = ["FREE", "BUSY", "ALERT"] as const;
-                      const rawStatus =
-                        zone.status as keyof typeof statusColors;
-                      const currentStatus = validStatuses.includes(
-                        rawStatus as any,
-                      )
-                        ? rawStatus
-                        : "FREE";
-                      const c = statusColors[currentStatus];
-
-                      return (
-                        <div
-                          key={zone.id}
-                          className={`flex flex-col justify-between p-5 rounded-2xl border ${c.border} ${c.bg} shadow-sm hover:shadow-md transition-all`}
-                        >
-                          <div className="flex justify-between items-start mb-3">
-                            <Badge
-                              variant="secondary"
-                              className={`font-semibold px-2.5 py-1 rounded-lg text-xs ${c.badge}`}
-                            >
-                              {currentStatus === "FREE"
-                                ? "Boş"
-                                : currentStatus === "BUSY"
-                                  ? "Meşgul"
-                                  : "Uyarı"}
-                            </Badge>
-                            <span className="text-xs font-mono font-medium text-slate-500 dark:text-slate-400 bg-white/70 dark:bg-slate-900/70 px-2.5 py-1 rounded-lg border border-slate-200/50 dark:border-slate-800/50">
-                              {zone.code}
-                            </span>
-                          </div>
-                          <div>
-                            <h3 className={`text-base font-bold ${c.text}`}>
-                              {zone.name}
-                            </h3>
-                            {zone.description && (
-                              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-1">
-                                {zone.description}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-
             {/* SAĞ SÜTUN: SON AKTİVİTELER */}
             <div className="space-y-4">
               <div className="flex items-center gap-2 mb-4 px-1">

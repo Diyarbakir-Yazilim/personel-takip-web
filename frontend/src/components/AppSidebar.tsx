@@ -125,7 +125,7 @@ export function AppSidebar() {
 
   return (
     <Sidebar variant="inset" className="border-r border-sidebar-border bg-sidebar/50 backdrop-blur-xl">
-      <SidebarHeader className="h-18 border-b border-sidebar-border/60 flex flex-row items-center px-5 bg-[#00B4D8] text-white">
+      <SidebarHeader className="h-18 border-b border-sidebar-border/60 flex flex-row items-center px-5 bg-[#0096C7] text-white">
         <div className="flex items-center gap-3 w-full" >
           <div className="flex size-10 items-center justify-center 
   rounded-xl bg-white/20 text-white shadow-inner border border-white/30">

@@ -51,18 +51,18 @@ export function FloorBreakdownCard({
 
   return (
     <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800/80 shadow-sm bg-[#34D399] dark:bg-slate-900/80 backdrop-blur-sm flex flex-col justify-between">
-      <CardContent className="py-1 px-6 space-y-4 flex-1 flex flex-col justify-between">
+      <CardContent className="py-5 px-6 space-y-4 flex-1 flex flex-col justify-between">
         <div>
           <div className="flex items-center justify-between">
             <p className="text-xs font-semibold uppercase tracking-wider text-black dark:text-slate-400">
               {isSingleBuilding ? "Kat İlerlemesi" : "Bina ve Kat İlerlemesi"}
             </p>
-            <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full">
+            <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full">
               %{percentage} Tamamlandı
             </span>
           </div>
 
-          <div className="mt-8 flex items-baseline justify-between">
+          <div className="mt-3 flex items-baseline justify-between">
             <div>
               <span className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-white">
                 {totalCompleted}
@@ -83,7 +83,7 @@ export function FloorBreakdownCard({
         <button
           onClick={handleOpenClick}
           disabled={isEmpty}
-          className="w-full py-1.5 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 transition-all rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center justify-center gap-1.5 border border-slate-200/60 dark:border-slate-700/60 shadow-sm disabled:opacity-50"
+          className="w-full py-2 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 transition-all rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center justify-center gap-1.5 border border-slate-200/60 dark:border-slate-700/60 shadow-sm disabled:opacity-50"
         >
           <Eye className="size-3.5" />
           Detay Gör
